@@ -136,21 +136,23 @@ uv run pytest tests/integration -v   # 集成测试（需 PG + Milvus）
 
 ## 前端
 
-前端位于 `web/`，独立 `package.json`，技术栈：Vue 3 + Vite + TypeScript + Pinia + Ant Design Vue 4 + lucide-vue-next，所有用户可见文案为简体中文（工程控制台风格）。
+前端位于 `web/`，独立 `package.json`，技术栈：Vue 3 + Vite + TypeScript + Pinia + Ant Design Vue 4 + lucide-vue-next，所有用户可见文案为简体中文，整体采用 Yuxi 风格的知识库产品工作台视觉（蓝绿色主色 + 浅灰背景 + 白色面板 + 细边框）。
 
 ### 前端功能
 
 当前前端已实现：
 
-- 中文工程控制台（左侧菜单 + 顶部标题 + 主内容区）
+- 中文知识库产品工作台（左侧轻量导航 + 顶部标题区 + 主内容区，蓝绿色主题）
 - 仪表盘健康检查（PostgreSQL / Milvus / 追踪编号 / 检查时间）
-- 知识库列表（卡片网格 + 状态标签 + 文档数量 + 创建时间）
+- 知识库列表（Yuxi 风格卡片网格 + 状态标签 + 文档数量 + 向量维度 + 创建时间 + 进入详情入口）
 - 新建知识库（弹窗表单 + 校验，Embedding 模型与维度只读对齐后端）
-- 知识库详情（基本信息 + 标签页：文件管理 / 检索测试 / 聊天问答 / 配置）
+- 知识库详情（沉浸式布局：隐藏左侧菜单 + 64px Header + 横向功能 Tab）
+- 横向功能 Tab（文件管理 / 检索测试 真实功能；知识图谱 / 知识导图 / RAG 评估 / 评估基准 显示"规划中"）
+- 文件管理（Yuxi 风格行列表：文件类型图标 + 文件名 + 状态徽标 + 细分隔线，非后台表格）
 - 文档上传（拖拽上传 + TXT/Markdown/PDF + 50MB 校验 + 重复文件检测）
 - 文档状态轮询（pending → parsing → chunking → embedding → indexing → completed/failed，每 3 秒轮询，全终态自动停止）
 - 检索测试（复用 `POST /api/v1/chat/sse`，左右分栏展示回答与引用来源）
-- 聊天问答（知识库详情页标签页 + 顶层 `/chat` 全局聊天页）
+- 聊天问答（顶层 `/chat` 全局聊天页，顶部标题 + 右侧知识库选择器 + 左右分栏）
 - POST SSE 流式输出（fetch + ReadableStream，禁用 EventSource）
 - 引用来源展示（多条卡片 + 3 位小数相似度 + 内容摘要折叠 + 空状态"暂无引用来源"）
 - API 地址设置（输入 + 测试连接 + 保存到 localStorage）
@@ -205,6 +207,10 @@ npm run dev
 - 后端 SSE 是 POST 接口（`POST /api/v1/chat/sse`），因此前端使用 `fetch + ReadableStream` 解析事件流，不使用 `EventSource`（EventSource 仅支持 GET）。
 - API Base URL 保存在 localStorage（key：`ragent.apiBaseUrl`），默认 `http://localhost:8000`，可在「设置」页修改并测试连接。
 - 后端 `done` 事件可能不携带引用来源，此时前端显示"暂无引用来源"，不伪造数据。
+
+### 前端 UI 参考
+
+前端知识库界面参考了开源项目 [xerrors/Yuxi](https://github.com/xerrors/Yuxi) 的产品结构与交互风格，包括知识库列表卡片网格、知识库详情页沉浸式 Header + 横向功能 Tab、文件管理行列表与蓝绿色（teal）产品工作台视觉风格。Yuxi 使用 MIT License，本项目仅做学习与工程复刻用途，未直接复制 Yuxi 的源代码、样式或组件实现。详细声明见 [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md)。
 
 ### 未实现功能
 

@@ -539,19 +539,20 @@ onBeforeUnmount(() => {
 }
 
 .chat-sse-panel__icon {
-  color: #1677ff;
+  color: var(--kb-primary);
 }
 
 .chat-sse-panel__desc {
   margin: 0;
   font-size: 13px;
-  color: var(--app-text-secondary);
+  color: var(--kb-text-secondary);
 }
 
 .chat-sse-panel__input-card,
 .chat-sse-panel__answer-card,
 .chat-sse-panel__trace-card {
-  border-radius: var(--app-radius);
+  border-radius: var(--kb-radius);
+  border-color: var(--kb-border);
 }
 
 .chat-sse-panel__input-row {
@@ -573,7 +574,7 @@ onBeforeUnmount(() => {
 .chat-sse-panel__hint {
   margin: 6px 0 0;
   font-size: 12px;
-  color: var(--app-text-tertiary);
+  color: var(--kb-text-tertiary);
 }
 
 .chat-sse-panel__answer-head {
@@ -624,14 +625,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f5ff;
-  color: #1677ff;
+  background-color: var(--kb-primary-soft);
+  color: var(--kb-primary);
   flex-shrink: 0;
 }
 
 .chat-msg--assistant .chat-msg__avatar {
-  background-color: #f6ffed;
-  color: #52c41a;
+  background-color: var(--kb-success-bg);
+  color: var(--kb-success);
 }
 
 .chat-msg__body {
@@ -647,7 +648,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--app-text-tertiary);
+  color: var(--kb-text-tertiary);
 }
 
 .chat-msg__role {
@@ -663,7 +664,7 @@ onBeforeUnmount(() => {
 .chat-msg__content {
   font-size: 14px;
   line-height: 1.6;
-  color: var(--app-text);
+  color: var(--kb-text);
 }
 
 .chat-msg__pre {
@@ -675,7 +676,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-msg__thinking {
-  color: var(--app-text-tertiary);
+  color: var(--kb-text-tertiary);
   font-style: italic;
 }
 
@@ -683,7 +684,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #cf1322;
+  color: var(--kb-error);
   font-size: 13px;
 }
 
@@ -695,59 +696,12 @@ onBeforeUnmount(() => {
 }
 
 .chat-sse-panel__trace-label {
-  color: var(--app-text-tertiary);
+  color: var(--kb-text-tertiary);
 }
 
 .chat-sse-panel__trace-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--app-text-secondary);
-  font-size: 12px;
-}
-
-/* =========================================================
- * 知识库工作台内（检索测试 Tab）轻量视觉统一
- * - 图标 / 头像跟随蓝绿色主色
- * - 卡片边框更轻（使用 --kb-border）
- * - 不改 SSE / API / store 逻辑
- * ========================================================= */
-:global(.kb-workspace) .chat-sse-panel__icon {
-  color: var(--kb-primary);
-}
-
-:global(.kb-workspace) .chat-sse-panel__desc {
   color: var(--kb-text-secondary);
-}
-
-:global(.kb-workspace) .chat-msg__avatar {
-  background-color: var(--kb-primary-bg);
-  color: var(--kb-primary);
-}
-
-:global(.kb-workspace) .chat-msg--assistant .chat-msg__avatar {
-  background-color: var(--kb-status-success-bg);
-  color: var(--kb-status-success);
-}
-
-:global(.kb-workspace) .chat-sse-panel__input-card,
-:global(.kb-workspace) .chat-sse-panel__answer-card,
-:global(.kb-workspace) .chat-sse-panel__trace-card {
-  border-color: var(--kb-border);
-  border-radius: var(--kb-radius);
-}
-
-:global(.kb-workspace) .chat-sse-panel__hint {
-  color: var(--kb-text-tertiary);
-}
-
-:global(.kb-workspace) .chat-msg__meta {
-  color: var(--kb-text-tertiary);
-}
-
-:global(.kb-workspace) .chat-msg__content {
-  color: var(--kb-text);
-}
-
-:global(.kb-workspace) .chat-msg__thinking {
-  color: var(--kb-text-tertiary);
+  font-size: 12px;
 }
 </style>

@@ -1,15 +1,16 @@
 <script setup lang="ts">
 /**
- * 设置页：配置后端 API 地址（P1.5 完善）
- * - 显示当前后端地址
- * - 测试连接：调用 GET /health，成功显示"连接正常"，失败显示中文错误 + 追踪编号
+ * 设置页（P1.8 / Yuxi 风格）
+ * - 配置后端 API 地址
+ * - 测试连接：调用 GET /health
  * - 保存设置：写入 localStorage（key: ragent.apiBaseUrl）
- * - 恢复默认：清除 localStorage，恢复默认地址
+ * - 恢复默认：清除 localStorage
  * - 不存储 API Key / 模型密钥
+ * - 使用统一蓝绿色主题
  */
 import { ref } from 'vue'
 import { Card, Form, FormItem, Input, Button, Space, Alert, message } from 'ant-design-vue'
-import { Save, RotateCcw, Plug } from 'lucide-vue-next'
+import { Save, RotateCcw, Plug, Settings } from 'lucide-vue-next'
 import {
   DEFAULT_API_BASE_URL,
   getApiBaseUrl,
@@ -98,9 +99,20 @@ async function handleTestConnection(): Promise<void> {
 
 <template>
   <div class="settings-view">
-    <Card class="settings-view__card" :bordered="true">
-      <template #title>系统设置</template>
+    <!-- 顶部标题区 -->
+    <div class="settings-view__header">
+      <div class="settings-view__heading">
+        <div class="settings-view__icon">
+          <Settings :size="20" />
+        </div>
+        <div class="settings-view__heading-text">
+          <h2 class="settings-view__title">设置</h2>
+          <p class="settings-view__desc">配置后端 API 地址</p>
+        </div>
+      </div>
+    </div>
 
+    <Card class="settings-view__card" :bordered="true">
       <Form layout="vertical" class="settings-view__form">
         <FormItem label="后端 API 地址">
           <Input
@@ -158,8 +170,54 @@ async function handleTestConnection(): Promise<void> {
   max-width: 720px;
 }
 
+.settings-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.settings-view__heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-view__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--kb-primary-soft);
+  color: var(--kb-primary);
+  flex-shrink: 0;
+}
+
+.settings-view__heading-text {
+  min-width: 0;
+}
+
+.settings-view__title {
+  margin: 0 0 2px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--kb-text);
+  line-height: 1.2;
+}
+
+.settings-view__desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--kb-text-tertiary);
+}
+
 .settings-view__card {
-  border-radius: var(--app-radius);
+  border-radius: var(--kb-radius);
+  border-color: var(--kb-border);
 }
 
 .settings-view__form {
@@ -168,7 +226,7 @@ async function handleTestConnection(): Promise<void> {
 
 .settings-view__current {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--app-text-secondary);
+  color: var(--kb-text-secondary);
   font-size: 13px;
 }
 
@@ -179,8 +237,8 @@ async function handleTestConnection(): Promise<void> {
 .settings-view__tips {
   margin-top: 12px;
   padding-top: 16px;
-  border-top: 1px solid var(--app-border);
-  color: var(--app-text-secondary);
+  border-top: 1px solid var(--kb-border-light);
+  color: var(--kb-text-secondary);
   font-size: 13px;
 }
 
@@ -190,11 +248,11 @@ async function handleTestConnection(): Promise<void> {
 }
 
 .settings-view__tips code {
-  background-color: #fafafa;
-  border: 1px solid var(--app-border);
+  background-color: var(--kb-bg);
+  border: 1px solid var(--kb-border);
   border-radius: 4px;
   padding: 1px 6px;
   font-size: 12px;
-  color: var(--app-text);
+  color: var(--kb-text);
 }
 </style>

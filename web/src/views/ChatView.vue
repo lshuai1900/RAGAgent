@@ -1,17 +1,17 @@
 <script setup lang="ts">
 /**
- * 全局聊天问答页（P1.4-B）
+ * 全局聊天问答页（P1.8 / Yuxi 风格高保真）
  *
  * - 路由：/chat
- * - 顶部选择知识库（加载知识库列表）
+ * - 顶部标题区：标题 + 副标题 + 右侧知识库选择器
  * - 选中知识库后复用 ChatSsePanel（mode='chat', layout='horizontal'）
- * - 未选择知识库时提示"请选择知识库"
+ * - 未选择知识库时提示"请选择知识库后再提问"
  * - 切换知识库时重置聊天 store
  * - 使用 fetch + ReadableStream 解析 SSE，不使用 EventSource
  */
 import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Card, Select, Spin, Empty, Alert } from 'ant-design-vue'
+import { Select, Spin, Alert } from 'ant-design-vue'
 import { MessageSquare } from 'lucide-vue-next'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { useChatStore } from '@/stores/chat'
@@ -86,13 +86,19 @@ watch(
 
 <template>
   <div class="chat-view">
-    <!-- 顶部：知识库选择区 -->
-    <Card :bordered="true" size="small" class="chat-view__selector-card">
-      <div class="chat-view__selector">
-        <div class="chat-view__selector-label">
-          <MessageSquare :size="16" class="chat-view__selector-icon" />
-          <span>聊天问答</span>
+    <!-- 顶部标题区：标题 + 副标题 + 右侧知识库选择器 -->
+    <div class="chat-view__header">
+      <div class="chat-view__heading">
+        <div class="chat-view__icon">
+          <MessageSquare :size="20" />
         </div>
+        <div class="chat-view__heading-text">
+          <h2 class="chat-view__title">聊天问答</h2>
+          <p class="chat-view__desc">选择知识库后进行流式问答</p>
+        </div>
+      </div>
+      <div class="chat-view__selector-wrap">
+        <span class="chat-view__selector-label">知识库</span>
         <Select
           :value="selectedKbId || undefined"
           :options="kbOptions"
@@ -103,7 +109,7 @@ watch(
           @change="handleKbChange"
         />
       </div>
-    </Card>
+    </div>
 
     <!-- 知识库列表加载中 -->
     <div v-if="isKbLoading && kbList.length === 0" class="chat-view__loading">
@@ -119,12 +125,13 @@ watch(
     />
 
     <!-- 未选择知识库 -->
-    <Card v-else-if="!hasSelectedKb" :bordered="true" class="chat-view__empty-card">
-      <Empty
-        :image="Empty.PRESENTED_IMAGE_SIMPLE"
-        description="请选择知识库后再提问"
-      />
-    </Card>
+    <div v-else-if="!hasSelectedKb" class="chat-view__empty">
+      <div class="chat-view__empty-icon">
+        <MessageSquare :size="40" />
+      </div>
+      <div class="chat-view__empty-title">请选择知识库后再提问</div>
+      <div class="chat-view__empty-desc">在右上角选择一个知识库后即可开始流式问答</div>
+    </div>
 
     <!-- 已选择知识库：展示聊天面板 -->
     <ChatSsePanel
@@ -146,32 +153,69 @@ watch(
   gap: 16px;
 }
 
-.chat-view__selector-card {
-  border-radius: var(--app-radius);
-}
-
-.chat-view__selector {
+.chat-view__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 14px 18px;
+  background-color: var(--kb-surface);
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+}
+
+.chat-view__heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chat-view__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--kb-primary-soft);
+  color: var(--kb-primary);
+  flex-shrink: 0;
+}
+
+.chat-view__heading-text {
+  min-width: 0;
+}
+
+.chat-view__title {
+  margin: 0 0 2px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--kb-text);
+  line-height: 1.2;
+}
+
+.chat-view__desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--kb-text-tertiary);
+}
+
+.chat-view__selector-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .chat-view__selector-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.chat-view__selector-icon {
-  color: #1677ff;
+  font-size: 13px;
+  color: var(--kb-text-tertiary);
 }
 
 .chat-view__select {
-  min-width: 280px;
-  max-width: 400px;
+  min-width: 240px;
+  max-width: 360px;
 }
 
 .chat-view__loading {
@@ -179,15 +223,43 @@ watch(
   align-items: center;
   justify-content: center;
   padding: 80px 0;
+  background-color: var(--kb-surface);
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
 }
 
-.chat-view__empty-card {
-  border-radius: var(--app-radius);
-}
-
-.chat-view__empty-card :deep(.ant-card-body) {
-  padding: 60px 0;
+.chat-view__empty {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 10px;
+  padding: 70px 0;
+  background-color: var(--kb-surface);
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+}
+
+.chat-view__empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--kb-primary-soft);
+  color: var(--kb-primary);
+  margin-bottom: 6px;
+}
+
+.chat-view__empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+.chat-view__empty-desc {
+  font-size: 13px;
+  color: var(--kb-text-tertiary);
 }
 </style>

@@ -144,6 +144,7 @@ async function handleSubmit(): Promise<void> {
     :width="560"
     :mask-closable="false"
     :destroy-on-close="true"
+    wrap-class-name="kb-modal"
     @cancel="close"
   >
     <Form

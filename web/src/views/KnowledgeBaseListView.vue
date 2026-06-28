@@ -1,15 +1,16 @@
 <script setup lang="ts">
 /**
- * 知识库列表页
- * - 卡片网格展示
- * - 新建知识库弹窗
- * - 加载中 / 空状态 / 错误提示
+ * 知识库列表页（P1.8 / Yuxi 风格高保真）
+ * - 顶部标题区：标题 + 副标题 + 右侧刷新 / 新建知识库
+ * - 卡片网格：3 列响应式
+ * - 空状态：暂无知识库，请先新建一个知识库
+ * - 错误 / 加载态使用统一蓝绿色主题
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { Button, Spin, Empty, Alert } from 'ant-design-vue'
-import { Plus, RefreshCw, Library } from 'lucide-vue-next'
+import { Button, Spin, Alert } from 'ant-design-vue'
+import { Plus, RefreshCw, Database } from 'lucide-vue-next'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import KnowledgeBaseCard from '@/components/KnowledgeBaseCard.vue'
 import KnowledgeBaseCreateModal from '@/components/KnowledgeBaseCreateModal.vue'
@@ -46,8 +47,13 @@ onMounted(() => {
     <!-- 顶部标题区 -->
     <div class="kb-list-view__header">
       <div class="kb-list-view__heading">
-        <h2 class="kb-list-view__title">知识库</h2>
-        <p class="kb-list-view__desc">管理用于 RAG 问答的知识库</p>
+        <div class="kb-list-view__icon">
+          <Database :size="20" />
+        </div>
+        <div class="kb-list-view__heading-text">
+          <h2 class="kb-list-view__title">知识库</h2>
+          <p class="kb-list-view__desc">管理用于 RAG 问答的知识库</p>
+        </div>
       </div>
       <div class="kb-list-view__actions">
         <Button :loading="isLoading" @click="refresh">
@@ -76,12 +82,15 @@ onMounted(() => {
       </div>
 
       <div v-else-if="isEmpty" class="kb-list-view__empty">
-        <Empty description="暂无知识库，请先新建一个知识库">
-          <Button type="primary" @click="openCreate">
-            <template #icon><Plus :size="14" /></template>
-            新建知识库
-          </Button>
-        </Empty>
+        <div class="kb-list-view__empty-icon">
+          <Database :size="48" />
+        </div>
+        <div class="kb-list-view__empty-title">暂无知识库</div>
+        <div class="kb-list-view__empty-desc">请先新建一个知识库</div>
+        <Button type="primary" @click="openCreate">
+          <template #icon><Plus :size="14" /></template>
+          新建知识库
+        </Button>
       </div>
 
       <div v-else-if="list.length > 0" class="kb-list-view__grid">
@@ -91,16 +100,6 @@ onMounted(() => {
           :knowledge-base="kb"
           @enter="enterDetail"
         />
-      </div>
-
-      <!-- 列表为空且非空态（兜底） -->
-      <div v-else class="kb-list-view__empty">
-        <Empty>
-          <template #image>
-            <Library :size="48" />
-          </template>
-          暂无数据
-        </Empty>
       </div>
     </div>
 
@@ -121,27 +120,47 @@ onMounted(() => {
 
 .kb-list-view__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
 }
 
 .kb-list-view__heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.kb-list-view__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--kb-primary-soft);
+  color: var(--kb-primary);
+  flex-shrink: 0;
+}
+
+.kb-list-view__heading-text {
   min-width: 0;
 }
 
 .kb-list-view__title {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   font-size: 20px;
   font-weight: 600;
-  color: var(--app-text);
+  color: var(--kb-text);
+  line-height: 1.2;
 }
 
 .kb-list-view__desc {
   margin: 0;
   font-size: 13px;
-  color: var(--app-text-tertiary);
+  color: var(--kb-text-tertiary);
 }
 
 .kb-list-view__actions {
@@ -167,9 +186,35 @@ onMounted(() => {
 
 .kb-list-view__empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px 0;
+  gap: 10px;
+  padding: 70px 0;
+}
+
+.kb-list-view__empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--kb-primary-soft);
+  color: var(--kb-primary);
+  margin-bottom: 6px;
+}
+
+.kb-list-view__empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+.kb-list-view__empty-desc {
+  font-size: 13px;
+  color: var(--kb-text-tertiary);
+  margin-bottom: 6px;
 }
 
 .kb-list-view__grid {
@@ -191,8 +236,8 @@ onMounted(() => {
 }
 
 .kb-list-view__footer {
-  margin-top: 16px;
+  margin-top: 18px;
   font-size: 13px;
-  color: var(--app-text-tertiary);
+  color: var(--kb-text-tertiary);
 }
 </style>
