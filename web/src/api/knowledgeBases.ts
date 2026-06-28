@@ -1,12 +1,20 @@
 /**
  * 知识库 API 客户端
  * 对应后端：
- * - POST /api/v1/knowledge-bases
- * - GET  /api/v1/knowledge-bases
- * - GET  /api/v1/knowledge-bases/{kb_id}
+ * - POST   /api/v1/knowledge-bases
+ * - GET    /api/v1/knowledge-bases
+ * - GET    /api/v1/knowledge-bases/{kb_id}
+ * - PATCH  /api/v1/knowledge-bases/{kb_id}
+ * - DELETE /api/v1/knowledge-bases/{kb_id}
  */
 import { request } from './client'
-import type { KnowledgeBaseCreate, KnowledgeBaseOut, KnowledgeBasePage } from '@/types/api'
+import type {
+  KnowledgeBaseCreate,
+  KnowledgeBaseDeleteResponse,
+  KnowledgeBaseOut,
+  KnowledgeBasePage,
+  KnowledgeBaseUpdate,
+} from '@/types/api'
 
 /** 分页列出知识库 */
 export function listKnowledgeBases(params?: {
@@ -34,5 +42,23 @@ export function getKnowledgeBase(kbId: string, signal?: AbortSignal): Promise<Kn
   return request<KnowledgeBaseOut>(`/api/v1/knowledge-bases/${encodeURIComponent(kbId)}`, {
     method: 'GET',
     signal,
+  })
+}
+
+/** 更新知识库（重命名 / 描述 / 状态，部分更新） */
+export function updateKnowledgeBase(
+  kbId: string,
+  payload: KnowledgeBaseUpdate,
+): Promise<KnowledgeBaseOut> {
+  return request<KnowledgeBaseOut>(`/api/v1/knowledge-bases/${encodeURIComponent(kbId)}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+/** 删除知识库（软删除：归档 + 尝试清理向量库 collection） */
+export function deleteKnowledgeBase(kbId: string): Promise<KnowledgeBaseDeleteResponse> {
+  return request<KnowledgeBaseDeleteResponse>(`/api/v1/knowledge-bases/${encodeURIComponent(kbId)}`, {
+    method: 'DELETE',
   })
 }

@@ -8,10 +8,18 @@ import { ref } from 'vue'
 import { formatApiError } from '@/api/client'
 import {
   createKnowledgeBase as apiCreateKb,
+  deleteKnowledgeBase as apiDeleteKb,
   getKnowledgeBase as apiGetKb,
   listKnowledgeBases as apiListKbs,
+  updateKnowledgeBase as apiUpdateKb,
 } from '@/api/knowledgeBases'
-import type { KnowledgeBaseCreate, KnowledgeBaseOut, KnowledgeBasePage } from '@/types/api'
+import type {
+  KnowledgeBaseCreate,
+  KnowledgeBaseDeleteResponse,
+  KnowledgeBaseOut,
+  KnowledgeBasePage,
+  KnowledgeBaseUpdate,
+} from '@/types/api'
 
 export type LoadState = 'idle' | 'loading' | 'success' | 'error'
 
@@ -68,6 +76,51 @@ export const useKnowledgeBaseStore = defineStore('knowledgeBase', () => {
     }
   }
 
+  // ===== 更新 =====
+  const updating = ref<boolean>(false)
+  const updateError = ref<string>('')
+
+  async function updateKb(kbId: string, payload: KnowledgeBaseUpdate): Promise<KnowledgeBaseOut> {
+    updating.value = true
+    updateError.value = ''
+    try {
+      const kb = await apiUpdateKb(kbId, payload)
+      // 同步更新详情缓存（标题立即变化）
+      detail.value = kb
+      // 刷新列表缓存（名称/描述同步）
+      await fetchList()
+      return kb
+    } catch (err) {
+      updateError.value = formatApiError(err)
+      throw err
+    } finally {
+      updating.value = false
+    }
+  }
+
+  // ===== 删除 =====
+  const deleting = ref<boolean>(false)
+  const deleteError = ref<string>('')
+
+  async function deleteKb(kbId: string): Promise<KnowledgeBaseDeleteResponse> {
+    deleting.value = true
+    deleteError.value = ''
+    try {
+      const result = await apiDeleteKb(kbId)
+      // 清空详情缓存并刷新列表（archived 不再返回）
+      detail.value = null
+      detailState.value = 'idle'
+      detailError.value = ''
+      await fetchList()
+      return result
+    } catch (err) {
+      deleteError.value = formatApiError(err)
+      throw err
+    } finally {
+      deleting.value = false
+    }
+  }
+
   // ===== 详情 =====
   const detail = ref<KnowledgeBaseOut | null>(null)
   const detailState = ref<LoadState>('idle')
@@ -111,6 +164,14 @@ export const useKnowledgeBaseStore = defineStore('knowledgeBase', () => {
     creating,
     createError,
     createKb,
+    // 更新
+    updating,
+    updateError,
+    updateKb,
+    // 删除
+    deleting,
+    deleteError,
+    deleteKb,
     // 详情
     detail,
     detailState,

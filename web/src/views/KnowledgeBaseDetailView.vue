@@ -23,6 +23,7 @@ import KnowledgeBaseTabs from '@/components/KnowledgeBaseTabs.vue'
 import FileManagerPanel from '@/components/FileManagerPanel.vue'
 import SearchTestPanel from '@/components/SearchTestPanel.vue'
 import DocumentUploadModal from '@/components/DocumentUploadModal.vue'
+import KnowledgeBaseEditModal from '@/components/KnowledgeBaseEditModal.vue'
 
 /** 详情页可用 Tab（仅文件管理 / 检索测试为真实功能，其余为规划态） */
 type TabKey = 'documents' | 'retrieve'
@@ -60,6 +61,7 @@ function readTabFromQuery(): TabKey {
 
 const activeTab = ref<TabKey>(readTabFromQuery())
 const uploadModalOpen = ref<boolean>(false)
+const editModalOpen = ref<boolean>(false)
 
 const isKbLoading = computed(() => detailState.value === 'loading')
 const isKbError = computed(() => detailState.value === 'error' && !isKbLoading.value)
@@ -106,6 +108,25 @@ function refreshDocs(): void {
 
 function openUpload(): void {
   uploadModalOpen.value = true
+}
+
+/** 打开编辑知识库弹窗 */
+function openEdit(): void {
+  editModalOpen.value = true
+}
+
+/** 编辑保存成功：store 已同步 detail 与 list，标题由 headerName 计算属性自动更新 */
+function handleUpdated(): void {
+  // store.updateKb 已更新 detail.value，headerName 会自动反映新名称；
+  // 这里再触发一次详情刷新，确保与后端一致。
+  if (kbId.value) {
+    void kbStore.fetchDetail(kbId.value)
+  }
+}
+
+/** 删除成功：跳转回知识库列表页 */
+function handleDeleted(): void {
+  router.push('/knowledge-bases')
 }
 
 /** activeTab 变化：同步 URL query，并在进出检索测试时重置聊天 store */
@@ -158,6 +179,7 @@ onBeforeUnmount(() => {
       :loading="isKbLoading"
       @back="goBack"
       @refresh="refreshKb"
+      @edit="openEdit"
     />
 
     <!-- 横向 Tab 导航 -->
@@ -220,6 +242,14 @@ onBeforeUnmount(() => {
 
     <!-- 上传文档弹窗 -->
     <DocumentUploadModal v-model:open="uploadModalOpen" :kb-id="kbId" />
+
+    <!-- 编辑知识库弹窗（重命名 / 描述 / 删除） -->
+    <KnowledgeBaseEditModal
+      v-model:open="editModalOpen"
+      :knowledge-base="detail"
+      @updated="handleUpdated"
+      @deleted="handleDeleted"
+    />
   </div>
 </template>
 
