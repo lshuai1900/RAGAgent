@@ -1,0 +1,35 @@
+---
+description: asyncio 异步编程规范
+globs: "**/*.py"
+---
+
+# async-conventions
+
+## 适用范围
+所有 Python 源文件，特别是涉及 IO 操作（DB/HTTP/Milvus/LLM）的代码。
+
+## 允许行为
+- 所有 IO 操作（DB 查询、HTTP 请求、Milvus 调用、LLM 调用）必须 async
+- 使用 `asyncio.gather` 并行执行多个独立任务
+- 使用 `asyncio.Semaphore` 控制并发上限
+- 使用 `contextvars` 透传 trace_id / user_id 等上下文
+- 需要调用同步库时用 `asyncio.to_thread` 包装
+- 使用 `async for` 遍历异步迭代器（如 LLM 流式输出）
+- 使用 `async with` 管理异步资源（DB session、httpx client）
+
+## 禁止行为
+- ❌ 禁止同步阻塞 IO（如 `requests.get`、同步 `psycopg2`、同步 `pymilvus`）
+- ❌ 禁止 `time.sleep()`（用 `asyncio.sleep()`）
+- ❌ 禁止在 async 函数中调用同步阻塞函数而不包装 `asyncio.to_thread`
+- ❌ 禁止用全局变量传递 trace_id（必须用 contextvars）
+- ❌ 禁止用 `asyncio.get_event_loop()` 获取事件循环（用 `asyncio.get_running_loop()` 或不显式获取）
+- ❌ 禁止在 async 函数中创建新事件循环
+- ❌ 禁止 `asyncio.create_task` 后不持有引用（可能被 GC 回收）
+- ❌ 禁止用 `threading.Thread` 复刻原项目线程池（用 asyncio.gather + Semaphore）
+
+## 硬约束
+- **全 async**：从 api → service → infra_ai/rag/ingestion/persistence 全链路 async
+- trace_id 通过 `framework/trace/context.py` 的 contextvars 透传，跨 async 任务不丢失
+- 并行任务用 `asyncio.gather(*coros, return_exceptions=False)`，异常向上冒泡
+- 并发控制按工作负载分组（检索/Embedding/LLM），各用独立 Semaphore
+- LLM 流式输出必须返回 `AsyncIterator[ChatChunk]`

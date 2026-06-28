@@ -1,0 +1,42 @@
+---
+description: 异常体系与统一响应规范
+globs: "src/ragent/framework/core/exceptions.py,src/ragent/framework/middleware/exception.py,src/ragent/schemas/common.py"
+---
+
+# exception-handling
+
+## 适用范围
+- `src/ragent/framework/core/exceptions.py`（异常定义）
+- `src/ragent/framework/middleware/exception.py`（全局拦截器）
+- `src/ragent/schemas/common.py`（ApiResponse）
+- 所有抛出异常的业务代码
+
+## 允许行为
+- 定义三级异常体系：
+  - `BizException`（业务异常，如知识库不存在、文档格式不支持）
+  - `SysException`（系统异常，如配置错误、状态机非法流转）
+  - `InfraException`（基础设施异常，如 DB 连接失败、Milvus 超时、LLM 调用失败）
+- 异常携带错误码（int）+ 错误消息（str）+ 可选 details（dict）
+- 全局异常拦截器把所有异常包装为 `ApiResponse` 返回
+- 业务代码抛出具体异常（如 `raise BizException(10001, "知识库不存在")`）
+
+## 禁止行为
+- ❌ 禁止抛出裸 `Exception` / `RuntimeError`（必须用三级异常之一）
+- ❌ 禁止在 api 层手动 try/except 返回错误（由全局拦截器统一处理）
+- ❌ 禁止未捕获异常泄露堆栈给客户端（返回 500 + 通用错误信息）
+- ❌ 禁止错误码跨段位（业务 1xxxx / 系统 2xxxx / 基础设施 3xxxx）
+- ❌ 禁止在异常消息中包含敏感信息（如密钥、SQL）
+
+## 硬约束
+- **错误码段位**：
+  - `1xxxx`：业务异常（BizException）
+  - `2xxxx`：系统异常（SysException）
+  - `3xxxx`：基础设施异常（InfraException）
+- **异常继承**：三级异常统一继承 `RagentException`（基类），RagentException 继承 `Exception`
+- **全局拦截器**：
+  - `BizException` → HTTP 400 + ApiResponse(code, message)
+  - `SysException` → HTTP 500 + ApiResponse(code, message)
+  - `InfraException` → HTTP 503 + ApiResponse(code, message)
+  - 未捕获异常 → HTTP 500 + ApiResponse(50000, "服务内部错误")，日志记录完整堆栈
+- **ApiResponse 结构**：`{code: int, message: str, data: T | None, trace_id: str}`
+- **trace_id 注入**：异常响应必须携带当前请求的 trace_id（从 contextvars 获取）

@@ -1,0 +1,50 @@
+---
+description: 日志与 Trace 规范
+globs: "src/ragent/framework/core/logging.py,src/ragent/framework/trace/**/*.py,src/ragent/framework/middleware/trace.py"
+---
+
+# logging-trace
+
+## 适用范围
+- `src/ragent/framework/core/logging.py`（结构化日志）
+- `src/ragent/framework/trace/**/*.py`（trace 上下文）
+- `src/ragent/framework/middleware/trace.py`（trace_id 中间件）
+- 所有使用 logger 的业务代码
+
+## 允许行为
+- 使用 structlog 或标准 logging + JSON formatter 输出结构化日志
+- 每条日志包含 trace_id（从 contextvars 获取）
+- 日志级别：DEBUG / INFO / WARNING / ERROR / CRITICAL
+- 关键节点记录 INFO 日志（如文档上传、检索完成、LLM 调用）
+- 异常记录 ERROR 日志，含完整堆栈（`exc_info=True`）
+- trace_id 通过 contextvars 透传，跨 async 任务不丢失
+- 每个 HTTP 请求注入 trace_id，写入响应头 `X-Trace-Id`
+
+## 禁止行为
+- ❌ **禁止实现复杂 Span 树**（MVP 不实现 @rag_trace_node / Span 写入 / 可视化追踪）
+- ❌ 禁止用 `print()` 输出（必须用 logger）
+- ❌ 禁止用全局变量传递 trace_id（必须用 contextvars）
+- ❌ 禁止日志包含敏感信息（API key、用户密码、完整 SQL 含参数值）
+- ❌ 禁止在日志中输出超大文本（如完整文档内容，截断到 500 字符）
+- ❌ 禁止向 `t_trace_span` 表写入 Span 数据（MVP 阶段，表仅预留）
+
+## 硬约束（MVP Trace 策略）
+- **MVP 仅实现**：
+  1. trace_id 透传（contextvars，跨 async 链路）
+  2. `X-Trace-Id` 响应头（每个 HTTP 响应都带）
+  3. 结构化日志含 trace_id（每条日志可关联到请求）
+- **MVP 不实现**：
+  - 复杂 Span 树（parent_id / 树形结构）
+  - `@rag_trace_node` 装饰器
+  - Span 写入 `t_trace_span` 表
+  - 可视化追踪界面
+  - 链路耗时分析
+- `t_trace_span` 表在第一批 T3 创建为预留，但**不写入任何数据**
+- 复杂 Trace 实现留待 P7 生产特性阶段
+
+## trace_id 生成与透传
+- trace_id 在 `framework/middleware/trace.py` 中间件生成（UUID 或雪花）
+- 存入 `framework/trace/context.py` 的 contextvars
+- async 任务通过 `asyncio.create_task` 或 `asyncio.gather` 时自动透传（contextvars 默认 copy context）
+- 响应头 `X-Trace-Id` 返回给客户端
+- 日志通过 structlog 的 processor 注入 trace_id 字段

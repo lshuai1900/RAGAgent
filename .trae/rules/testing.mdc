@@ -1,0 +1,53 @@
+---
+description: 测试规范
+globs: "tests/**/*.py"
+---
+
+# testing
+
+## 适用范围
+- `tests/unit/**/*.py`（单元测试）
+- `tests/integration/**/*.py`（集成测试）
+- `tests/conftest.py`（公共 fixture）
+
+## 允许行为
+- 使用 pytest + pytest-asyncio
+- 单元测试与集成测试分层：`tests/unit/` / `tests/integration/`
+- 公共 fixture 集中在 `tests/conftest.py`
+- 单元测试用 Mock 隔离 IO（DB / Milvus / LLM / HTTP）
+- 集成测试依赖 docker-compose 启动的 PostgreSQL + Milvus
+- LLM 调用必须可 Mock（便于 CI 无需真实 API key）
+- 使用 `pytest.mark.asyncio` 标记异步测试
+- 使用 fixture 管理测试数据（如 sample.pdf）
+
+## 禁止行为
+- ❌ **单元测试禁止真实 IO**（DB / Milvus / LLM / HTTP 必须 Mock）
+- ❌ 禁止单元测试依赖外部服务（必须自包含）
+- ❌ 禁止集成测试硬编码连接信息（用环境变量或测试配置）
+- ❌ 禁止测试代码包含真实 API key（用 Mock）
+- ❌ 禁止测试互相依赖（每个测试独立可运行）
+- ❌ 禁止用 `time.sleep` 等待异步完成（用 `pytest.mark.asyncio` + await）
+
+## 硬约束
+- **单元测试**：
+  - 位于 `tests/unit/`
+  - 禁止真实 IO（用 unittest.mock.AsyncMock / pytest-mock）
+  - 覆盖边界场景（空输入/超长输入/异常输入）
+  - 命名 `test_{module}_{scenario}.py`
+- **集成测试**：
+  - 位于 `tests/integration/`
+  - 依赖 docker-compose（PG + Milvus）
+  - 每个测试用例独立清理数据（用 fixture 的 setup/teardown）
+  - LLM 调用用 Mock（避免真实 API 调用）
+- **fixture 管理**：
+  - DB session fixture（async，事务回滚隔离）
+  - Milvus collection fixture（测试后清理）
+  - LLM Mock fixture（返回预设 ChatChunk 流）
+  - Embedding Mock fixture（返回预设向量）
+- **新功能必须附测试**：每个新功能至少一个单元测试
+- **CI 可跑**：`uv run pytest` 在无真实 API key 环境下通过（全 Mock）
+
+## 测试命令
+- `make test` 或 `uv run pytest`
+- `make test-unit` 或 `uv run pytest tests/unit`
+- `make test-integration` 或 `uv run pytest tests/integration`

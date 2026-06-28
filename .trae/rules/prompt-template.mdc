@@ -1,0 +1,40 @@
+---
+description: Prompt 模板管理规范
+globs: "configs/prompts/**,src/ragent/rag/prompt/**/*.py"
+---
+
+# prompt-template
+
+## 适用范围
+- `configs/prompts/*.txt`（Prompt 模板文件）
+- `src/ragent/rag/prompt/service.py`（PromptService）
+
+## 允许行为
+- Prompt 模板统一放在 `configs/prompts/` 目录
+- 使用 `{key}` 占位符（Mustache 风格）
+- 使用 `rag/prompt/service.py` 的 PromptService 加载并渲染模板
+- 按场景组织模板文件（如 answer-chat-kb.txt、context-format.txt）
+- 模板支持多 section（用注释分隔，如 `--- section: kb-section ---`）
+- PromptService 缓存模板内容（避免每次 IO 读文件）
+
+## 禁止行为
+- ❌ **禁止在代码内硬编码 Prompt 字符串**（必须用模板文件）
+- ❌ 禁止用 f-string 拼接 Prompt（用 PromptService.render）
+- ❌ 禁止模板文件中包含敏感信息（API key 等）
+- ❌ 禁止模板文件放在 src/ 下（必须放 configs/prompts/）
+- ❌ 禁止模板使用 Jinja2 语法（MVP 用简单 {key} 占位符）
+
+## 硬约束
+- **模板位置**：`configs/prompts/*.txt`
+- **占位符格式**：`{key}`（如 `{evidence}`、`{question}`、`{history}`）
+- **渲染入口**：`PromptService.render(template_name, **kwargs)`
+- **KB 回答模板**：`answer-chat-kb.txt`，含 system + evidence + question 拼装
+- **上下文格式化模板**：`context-format.txt`，多 section 结构（kb-section / mcp-section 等，MVP 仅 kb-section）
+
+## MVP 模板清单
+| 模板文件 | 用途 |
+|---|---|
+| `answer-chat-kb.txt` | KB 回答场景默认 Prompt |
+| `context-format.txt` | 上下文格式化（多 section） |
+
+后续阶段新增：answer-chat-mcp.txt / answer-chat-mixed.txt / intent-classifier.txt / user-question-rewrite.txt 等。

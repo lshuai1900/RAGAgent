@@ -1,0 +1,63 @@
+---
+description: 异步任务（BackgroundTasks）规范
+globs: "src/ragent/api/v1/documents.py,src/ragent/service/ingestion_service.py,src/ragent/ingestion/pipeline.py"
+---
+
+# background-tasks
+
+## 适用范围
+- `src/ragent/api/v1/documents.py`（文档上传接口）
+- `src/ragent/service/ingestion_service.py`（摄取编排）
+- `src/ragent/ingestion/pipeline.py`（摄取 pipeline）
+- 任何使用 FastAPI BackgroundTasks 的代码
+
+## 允许行为
+- 使用 FastAPI 的 `BackgroundTasks` 触发异步任务（MVP 锁定）
+- 在 api 层注入 `BackgroundTasks`，将耗时任务（如摄取 pipeline）加入后台执行
+- 任务执行中更新 `Document.status`（parsing→chunking→embedding→indexing→completed）
+- 任务失败时更新 `Document.status = failed` + `error_message`
+- 任务中使用独立 DB session（不复用请求级 session）
+- 任务中通过 contextvars 透传 trace_id（保持可追踪）
+
+## 禁止行为
+- ❌ **禁止引入 Celery / Dramatiq / Redis Queue**（MVP 锁定 BackgroundTasks）
+- ❌ 禁止任务失败后重试（MVP 不实现重试机制）
+- ❌ 禁止任务失败后死信队列（MVP 不实现死信）
+- ❌ 禁止任务失败后重投（MVP 不实现重投）
+- ❌ 禁止在 BackgroundTasks 中阻塞事件循环（必须是 async 函数）
+- ❌ 禁止任务共享请求级 DB session（必须新建独立 session）
+- ❌ 禁止任务异常冒泡到客户端（上传接口立即返回 document_id，任务异常仅更新 DB）
+
+## 硬约束
+- **MVP 异步任务方式**：FastAPI BackgroundTasks
+- **触发点**：`api/v1/documents.py` 上传接口，任务加入 `background_tasks.add_task(...)`
+- **任务签名**：`async def run_ingestion_pipeline(document_id: str, ...)`，参数显式传递（不依赖请求上下文）
+- **状态更新**：任务内每个阶段更新 `Document.status`（parsing/chunking/embedding/indexing/completed）
+- **失败处理**：捕获所有异常，更新 `Document.status = failed` + `error_message`，记录 ERROR 日志，不重试
+- **DB session**：任务内通过 `framework/db/session.py` 的 session factory 新建独立 async session
+- **trace_id 透传**：任务参数显式传递 trace_id，在任务内重新设置 contextvars（因为 BackgroundTasks 可能跨 context）
+
+## 适用场景
+BackgroundTasks 适合**短任务**（秒级到分钟级），如：
+- 文档摄取 pipeline（parse → chunk → embed → index）
+- 单文档的向量化
+
+不适合**长任务**或**高可靠任务**（如批量导入千份文档），这类留待后续阶段引入任务队列（P2 摄取管道扩展）。
+
+## 任务流程示意
+```
+POST /api/v1/documents/upload
+  → 立即创建 Document(status=pending)，落库
+  → background_tasks.add_task(run_ingestion_pipeline, document_id, trace_id, ...)
+  → 立即返回 ApiResponse(document_id)
+
+后台任务 run_ingestion_pipeline(document_id, trace_id, ...):
+  → 新建独立 DB session
+  → 设置 contextvars trace_id
+  → 更新 status=parsing → parse
+  → 更新 status=chunking → chunk
+  → 更新 status=embedding → embed
+  → 更新 status=indexing → index (Milvus)
+  → 更新 status=completed
+  → 异常时：更新 status=failed + error_message，记录日志
+```

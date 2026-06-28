@@ -1,0 +1,41 @@
+---
+description: 持久化层与 ORM Model 规范
+globs: "src/ragent/persistence/**/*.py,alembic/**/*.py"
+---
+
+# persistence-conventions
+
+## 适用范围
+- `src/ragent/persistence/models/**/*.py`（ORM Model）
+- `src/ragent/persistence/repositories/**/*.py`（Repository）
+- `alembic/**/*.py`（迁移脚本）
+
+## 允许行为
+- 使用 SQLAlchemy 2.0 async declarative（`DeclarativeBase` + `Mapped` + `mapped_column`）
+- 使用 asyncpg 驱动
+- 使用 Alembic 管理 schema 迁移
+- 使用泛型 `BaseRepository[T]` 复用 CRUD 基础方法
+- 公共字段通过 mixin 复用（id/created_at/updated_at）
+- 使用 JSONB 存储结构化元数据（如 metadata、retrieval_context）
+
+## 禁止行为
+- ❌ **ORM Model 只能放 `persistence/models/`**，禁止散落到 domain/rag/ingestion 等
+- ❌ **ORM Model 与 Pydantic Schema 严禁混用**（不得继承 BaseModel 又继承 DeclarativeBase）
+- ❌ 禁止在 ORM Model 中写业务逻辑
+- ❌ 禁止使用同步驱动（如 psycopg2，必须 asyncpg）
+- ❌ 禁止在 Repository 中持有 HTTP 语义（不返回 Response）
+- ❌ 禁止手动写 SQL 建表（必须用 Alembic 迁移）
+- ❌ 禁止迁移脚本删除已有数据列而不提供数据迁移方案
+
+## 硬约束
+- **表名 `t_` 前缀**：所有表名必须以 `t_` 开头（如 `t_knowledge_base`、`t_document`）
+- **主键雪花 ID**：主键为 String 类型，使用 `framework/core/snowflake.py` 生成雪花 ID
+- **公共字段 mixin**：所有表必须有 `id`（雪花）/ `created_at` / `updated_at`，通过 `persistence/models/base.py` 的 mixin 实现
+- **软删除**：按需添加 `deleted_at`（DateTime, nullable），MVP 暂不强制
+- **Alembic 迁移命名**：`{revision}_{description}.py`，description 用下划线小写
+- **async session**：DB session 通过 `framework/db/session.py` 的 async session factory 创建
+- **Repository 走 `persistence/repositories/`**：数据访问统一经 Repository，service 不直接写 ORM 查询
+
+## TraceSpan 预留表约束
+- `t_trace_span` 表在第一批 T3 创建，但 **MVP 不写入任何 Span 数据**
+- 仅作为表结构预留，留待 P7 生产特性阶段实现复杂追踪

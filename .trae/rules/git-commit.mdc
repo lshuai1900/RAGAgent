@@ -1,0 +1,83 @@
+---
+description: Git 提交规范
+globs: "**"
+---
+
+# git-commit
+
+## 适用范围
+所有 git 提交（本项目所有文件）。
+
+## 允许行为
+- 使用 Conventional Commits 规范
+- scope 用模块名（见下方清单）
+- 提交信息用中英文均可，但需清晰描述变更
+- 单次提交聚焦单一职责（不混合多个无关变更）
+- 使用 HEREDOC 格式传递多行 commit message
+
+## 提交格式
+```
+<type>(<scope>): <subject>
+
+<body>
+```
+
+### type 清单
+| type | 说明 |
+|---|---|
+| feat | 新功能 |
+| fix | 修复 bug |
+| docs | 文档变更 |
+| optimize | 优化（性能/体验/代码质量，非新功能非修复） |
+| refactor | 重构（不改变外部行为） |
+| chore | 杂项（依赖升级/配置调整/构建脚本） |
+| test | 测试相关 |
+| style | 代码风格（格式化，不影响逻辑） |
+
+### scope 清单
+| scope | 对应模块 |
+|---|---|
+| api | api 层 |
+| service | service 层 |
+| domain | domain 层 |
+| persistence | persistence 层（ORM/Repository/迁移） |
+| infra-ai | infra_ai 层（LLM/Embedding/Rerank） |
+| rag | rag 层（vector/retrieve/prompt/memory） |
+| ingestion | ingestion 层（parser/chunker/pipeline） |
+| schemas | schemas 层 |
+| framework | framework 层（core/db/sse/trace/middleware） |
+| config | 配置文件 |
+| docs | 文档 |
+| deps | 依赖 |
+
+## 禁止行为
+- ❌ 禁止无 type 的提交（如 `update file.py`）
+- ❌ 禁止无 scope 的提交（如 `feat: 加功能`，必须 `feat(rag): ...`）
+- ❌ 禁止提交信息过于笼统（如 `fix bug`、`update`）
+- ❌ 禁止单次提交混合多个无关变更
+- ❌ 禁止提交包含敏感信息（.env、API key）
+- ❌ 禁止 `git commit -m` 传递超长单行信息（用 HEREDOC）
+
+## 示例
+```
+feat(rag): 实现向量检索通道 VectorRetriever
+
+- 新增 BaseRetriever 抽象接口
+- 实现 VectorRetriever（embed query → Milvus search → RetrievalResult）
+- 补充单元测试覆盖空结果/正常检索场景
+```
+
+```
+fix(ingestion): 修复 PDF 分页元信息丢失
+
+- PdfParser 未保留 page 字段，导致 chunk metadata 缺页码
+- 修复 Section.page 赋值逻辑
+```
+
+```
+docs(readme): 更新 MVP 接口说明
+```
+
+```
+chore(deps): 升级 pydantic 至 v2.9
+```

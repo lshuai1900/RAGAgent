@@ -1,0 +1,29 @@
+# Ragent-Py 主配置文件
+# 环境变量覆盖优先级：环境变量 > 本文件 > 代码默认值
+# 环境变量命名：RAGENT__{SECTION}__{KEY}（双下划线分隔）
+
+app:
+  host: 0.0.0.0
+  port: 8000
+  name: ragent-py
+  env: dev
+
+db:
+  url: postgresql+asyncpg://ragent:ragent@localhost:5432/ragent
+  pool_size: 10
+  max_overflow: 20
+  echo: false
+
+milvus:
+  uri: http://localhost:19530
+
+llm:
+  default_provider: qwen
+  timeout: 60
+
+embedding:
+  default_provider: qwen
+  dim: 1024
+
+rag:
+  default_top_k: 10

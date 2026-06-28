@@ -1,0 +1,47 @@
+---
+description: SSE 流式输出规范
+globs: "src/ragent/framework/sse/**/*.py,src/ragent/api/v1/chat.py,src/ragent/service/chat_service.py"
+---
+
+# sse-streaming
+
+## 适用范围
+- `src/ragent/framework/sse/emitter.py`（SSE 事件流封装）
+- `src/ragent/api/v1/chat.py`（聊天接口）
+- `src/ragent/service/chat_service.py`（流式编排）
+
+## 允许行为
+- 使用 sse-starlette 的 `EventSourceResponse` 输出 SSE 事件流
+- 事件格式遵循 SSE 规范：`event: {type}\ndata: {json}\n\n`
+- 定义四类事件：start / delta / done / error
+- 流式输出 LLM 的 ChatChunk（delta 内容）
+- 首包事件（start）在 LLM 首个 token 到达前发送（用于客户端感知连接建立）
+- 错误事件携带 trace_id（便于排查）
+
+## 禁止行为
+- ❌ 禁止用普通 `StreamingResponse` 输出 SSE（必须用 sse-starlette 的 `EventSourceResponse`）
+- ❌ 禁止在 SSE 流中输出非约定事件类型
+- ❌ 禁止连接断开导致进程崩溃（必须捕获 `ConnectionError` / `asyncio.CancelledError`）
+- ❌ 禁止错误事件泄露堆栈给客户端（返回通用错误 + trace_id）
+- ❌ 禁止在 SSE 流中阻塞事件循环（LLM 流式必须是 AsyncIterator）
+
+## 硬约束（事件格式）
+四类事件，data 为 JSON 字符串：
+
+| 事件 | event 字段 | data 字段 | 时机 |
+|---|---|---|---|
+| 开始 | `start` | `{"trace_id": "..."}` | 连接建立后立即发送 |
+| 增量 | `delta` | `{"content": "..."}` | LLM 每个 token 到达 |
+| 结束 | `done` | `{"trace_id": "...", "finish_reason": "stop"}` | LLM 输出完成 |
+| 错误 | `error` | `{"trace_id": "...", "code": 30001, "message": "..."}` | 异常发生时 |
+
+## 首包探测
+- LLM 客户端的 `stream_chat` 必须支持首包探测
+- 首个 ChatChunk 到达时，service 层发送 `start` 事件
+- 首包延迟可观测（日志记录首包耗时）
+
+## 连接断开处理
+- 捕获 `asyncio.CancelledError`（客户端断开）
+- 捕获 `ConnectionError`（网络异常）
+- 断开后不抛异常到上层，仅记录日志
+- LLM 流式迭代器在断开后自动关闭（async with）

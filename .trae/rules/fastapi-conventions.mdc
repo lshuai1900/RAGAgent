@@ -1,0 +1,39 @@
+---
+description: FastAPI 路由与依赖注入规范
+globs: "src/ragent/api/**/*.py,src/ragent/schemas/**/*.py"
+---
+
+# fastapi-conventions
+
+## 适用范围
+- `src/ragent/api/**/*.py`（路由层）
+- `src/ragent/schemas/**/*.py`（API Schema）
+- `src/ragent/main.py`（app 入口）
+
+## 允许行为
+- 路由按版本分层：`api/v1/{module}.py`
+- 所有 endpoint 必须是 `async def`
+- 使用 `schemas/` 的 Pydantic v2 模型做请求体校验与响应序列化
+- 使用 `api/deps.py` 做依赖注入（注入 service）
+- 使用 `APIRouter` 组织路由
+- 响应统一包装为 `ApiResponse[T]`（schemas/common.py）
+- 使用 FastAPI 的 `BackgroundTasks` 触发异步任务（MVP 锁定）
+- 使用 `StreamingResponse` 或 `sse-starlette` 做 SSE 流式
+
+## 禁止行为
+- ❌ **api 层禁止直接调用 repository**（必须通过 service）
+- ❌ **api 层禁止直接调用 infra_ai**（必须通过 service）
+- ❌ **api 层禁止直接调用 rag/ingestion**（必须通过 service）
+- ❌ 禁止在 api 层写业务逻辑（只做 HTTP 编排：参数提取 → 调 service → 返回响应）
+- ❌ 禁止在 api 层直接操作 DB session（由 service 或 deps 管理）
+- ❌ 禁止使用同步 `def` endpoint（必须 `async def`）
+- ❌ 禁止在 schemas 中混入 SQLAlchemy ORM Model
+- ❌ 禁止在 api 层硬编码 Prompt 字符串
+- ❌ 禁止在 api 层返回裸 dict（必须用 ApiResponse 包装）
+
+## 硬约束
+- **api 只调 service**：`api/v1/chat.py` 只能 import `service/chat_service.py`，不得 import persistence/infra_ai/rag/ingestion
+- 请求/响应模型必须在 `schemas/` 定义，不得在 api 层内联定义
+- `ApiResponse[T]` 是统一响应体，所有成功响应必须包装
+- 错误响应由全局异常拦截器统一处理，api 层不手动 try/except 返回错误
+- 路由前缀统一 `/api/v1`
