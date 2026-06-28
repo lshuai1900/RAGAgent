@@ -1,0 +1,128 @@
+/**
+ * 文档状态映射工具（纯函数，不调 api、不访问 store）
+ * 状态文案与颜色严格对齐 docs/FRONTEND_UI_SPEC.md 第 8 节与 .trae/rules/frontend-ui.mdc：
+ * - pending：待处理（default）
+ * - parsing/chunking/embedding/indexing：处理中（processing）
+ * - completed：已完成（success）
+ * - failed：失败（error）
+ * 另提供 4 分组（等待处理/处理中/已完成/处理失败），用于状态统计卡片与状态过滤。
+ */
+import {
+  DocumentStatus,
+  type DocumentStatusValue,
+} from '@/types/enums'
+
+/** 文档状态 → 中文文案 */
+export function documentStatusText(status: string): string {
+  switch (status as DocumentStatusValue) {
+    case DocumentStatus.PENDING:
+      return '待处理'
+    case DocumentStatus.PARSING:
+      return '解析中'
+    case DocumentStatus.CHUNKING:
+      return '分块中'
+    case DocumentStatus.EMBEDDING:
+      return '向量化中'
+    case DocumentStatus.INDEXING:
+      return '入库中'
+    case DocumentStatus.COMPLETED:
+      return '已完成'
+    case DocumentStatus.FAILED:
+      return '失败'
+    default:
+      return '未知状态'
+  }
+}
+
+/** 文档状态 → Antd Tag 颜色 */
+export function documentStatusColor(status: string): string {
+  switch (status as DocumentStatusValue) {
+    case DocumentStatus.PENDING:
+      return 'default'
+    case DocumentStatus.PARSING:
+    case DocumentStatus.CHUNKING:
+    case DocumentStatus.EMBEDDING:
+    case DocumentStatus.INDEXING:
+      return 'processing'
+    case DocumentStatus.COMPLETED:
+      return 'success'
+    case DocumentStatus.FAILED:
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+/** 文档状态分组（用于统计卡片与过滤） */
+export type DocumentStatusCategory = 'pending' | 'processing' | 'completed' | 'failed'
+
+/** 文档状态 → 4 分组 */
+export function documentStatusCategory(status: string): DocumentStatusCategory {
+  switch (status as DocumentStatusValue) {
+    case DocumentStatus.PENDING:
+      return 'pending'
+    case DocumentStatus.PARSING:
+    case DocumentStatus.CHUNKING:
+    case DocumentStatus.EMBEDDING:
+    case DocumentStatus.INDEXING:
+      return 'processing'
+    case DocumentStatus.COMPLETED:
+      return 'completed'
+    case DocumentStatus.FAILED:
+      return 'failed'
+    default:
+      return 'failed'
+  }
+}
+
+/** 分组 → 中文文案 */
+export function documentCategoryText(category: DocumentStatusCategory): string {
+  switch (category) {
+    case 'pending':
+      return '等待处理'
+    case 'processing':
+      return '处理中'
+    case 'completed':
+      return '已完成'
+    case 'failed':
+      return '处理失败'
+  }
+}
+
+/** 分组 → Antd Tag 颜色 */
+export function documentCategoryColor(category: DocumentStatusCategory): string {
+  switch (category) {
+    case 'pending':
+      return 'default'
+    case 'processing':
+      return 'processing'
+    case 'completed':
+      return 'success'
+    case 'failed':
+      return 'error'
+  }
+}
+
+/** 是否为终态（completed / failed） */
+export function isTerminalDocumentStatus(status: string): boolean {
+  return status === DocumentStatus.COMPLETED || status === DocumentStatus.FAILED
+}
+
+/** 是否为处理中状态（parsing/chunking/embedding/indexing） */
+export function isProcessingDocumentStatus(status: string): boolean {
+  return (
+    status === DocumentStatus.PARSING ||
+    status === DocumentStatus.CHUNKING ||
+    status === DocumentStatus.EMBEDDING ||
+    status === DocumentStatus.INDEXING
+  )
+}
+
+/** 文件类型 → 中文展示（txt→TXT / md→Markdown / pdf→PDF，其他原值大写） */
+export function fileTypeText(fileType: string): string {
+  const ft = (fileType || '').toLowerCase()
+  if (ft === 'txt') return 'TXT'
+  if (ft === 'md' || ft === 'markdown') return 'Markdown'
+  if (ft === 'pdf') return 'PDF'
+  return fileType ? fileType.toUpperCase() : '-'
+}
