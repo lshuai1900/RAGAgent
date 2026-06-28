@@ -71,7 +71,8 @@ function handleRefresh(): void {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 24px;
+  height: 64px;
+  padding: 0 24px;
   background-color: var(--kb-card-bg);
   border-bottom: 1px solid var(--kb-border);
 }

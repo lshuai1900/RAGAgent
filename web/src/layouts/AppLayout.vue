@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 全局布局
- * - 默认：左侧导航栏 + 顶部标题区 + 主内容区（工程控制台风格）
+ * 全局布局（P1.8 / Yuxi 风格）
+ * - 默认：左侧轻量导航 + 顶部页面标题 + 主内容区
  * - 沉浸式（route.meta.immersive = true）：隐藏左侧菜单与顶部标题栏，
- *   仅渲染主内容区，供知识库详情页等沉浸式工作台使用（P1.6 / Yuxi 风格）
+ *   仅渲染主内容区，供知识库详情页等沉浸式工作台使用
  */
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -40,14 +40,14 @@ const immersive = computed(() => route.meta.immersive === true)
 .app-layout {
   display: flex;
   height: 100vh;
-  background-color: var(--app-bg);
+  background-color: var(--kb-bg);
 }
 
 .app-layout__sidebar {
   width: 220px;
   flex-shrink: 0;
-  background-color: var(--app-sidebar-bg);
-  border-right: 1px solid var(--app-border);
+  background-color: var(--kb-surface);
+  border-right: 1px solid var(--kb-border);
   overflow-y: auto;
 }
 
@@ -61,7 +61,7 @@ const immersive = computed(() => route.meta.immersive === true)
 .app-layout__content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 24px 28px;
 }
 
 /* 沉浸式布局：满屏主内容，由详情页自行管理背景与滚动 */

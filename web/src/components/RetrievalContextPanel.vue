@@ -133,7 +133,8 @@ function fmtText(v: unknown): string {
 
 <style scoped>
 .rcp {
-  border-radius: var(--app-radius);
+  border-radius: var(--kb-radius);
+  border-color: var(--kb-border);
 }
 
 .rcp__title {
@@ -145,7 +146,7 @@ function fmtText(v: unknown): string {
 }
 
 .rcp__icon {
-  color: #1677ff;
+  color: var(--kb-primary);
 }
 
 .rcp__empty {
@@ -161,10 +162,10 @@ function fmtText(v: unknown): string {
 }
 
 .rcp__item {
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
   padding: 10px 12px;
-  background-color: #fafafa;
+  background-color: var(--kb-bg);
 }
 
 .rcp__item-head {
@@ -182,11 +183,11 @@ function fmtText(v: unknown): string {
 }
 
 .rcp__label {
-  color: var(--app-text-tertiary);
+  color: var(--kb-text-tertiary);
 }
 
 .rcp__value {
-  color: var(--app-text-secondary);
+  color: var(--kb-text-secondary);
 }
 
 .rcp__value--mono {
@@ -209,7 +210,7 @@ function fmtText(v: unknown): string {
 }
 
 .rcp__content {
-  color: var(--app-text);
+  color: var(--kb-text);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -223,30 +224,11 @@ function fmtText(v: unknown): string {
   background: none;
   cursor: pointer;
   font-size: 12px;
-  color: #1677ff;
+  color: var(--kb-primary);
   align-self: flex-start;
 }
 
 .rcp__toggle:hover {
-  color: #4096ff;
-}
-
-/* 知识库工作台内（检索测试 Tab）轻量视觉统一：图标 / 链接跟随蓝绿色主色 */
-:global(.kb-workspace) .rcp__icon {
-  color: var(--kb-primary);
-}
-
-:global(.kb-workspace) .rcp__item {
-  border-color: var(--kb-border);
-  border-radius: var(--kb-radius);
-  background-color: var(--kb-bg);
-}
-
-:global(.kb-workspace) .rcp__toggle {
-  color: var(--kb-primary);
-}
-
-:global(.kb-workspace) .rcp__toggle:hover {
   color: var(--kb-primary-hover);
 }
 </style>
