@@ -111,9 +111,9 @@ onUnmounted(() => {
     <Card class="dashboard__card" :bordered="true">
       <template #title>说明</template>
       <ul class="dashboard__tips">
-        <li>当前页面仅展示后端 <code>GET /health</code> 的检查结果。</li>
+        <li>当前页面展示后端 <code>GET /health</code> 的检查结果，包含 PostgreSQL 与 Milvus 的连通性。</li>
         <li>如需更换后端地址，请前往「设置」修改"后端 API 地址"。</li>
-        <li>知识库管理与聊天问答将在后续批次实现。</li>
+        <li>知识库管理请前往左侧菜单「知识库」，聊天问答请前往「聊天问答」。</li>
       </ul>
     </Card>
   </div>
