@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * 知识库详情页（P1.3）
+ * 知识库详情页（P1.3 + P1.4-A）
  * - 顶部展示知识库基本信息（名称/描述/状态/向量维度/集合名称/文档数量/创建时间）
- * - 标签页：文件管理（真实功能）/ 检索测试（占位）/ 聊天问答（占位）/ 配置（占位）
+ * - 标签页：文件管理（真实功能）/ 检索测试（占位）/ 聊天问答（真实 SSE）/ 配置（占位）
  * - 文件管理：状态统计 + 上传 + 文档表格 + 状态轮询
+ * - 聊天问答：POST /api/v1/chat/sse 流式输出（fetch + ReadableStream）
  * - 标签页切换同步 route.query.tab
  */
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
@@ -25,6 +26,7 @@ import {
 import { ArrowLeft, RefreshCw, Upload } from 'lucide-vue-next'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { useDocumentStore } from '@/stores/document'
+import { useChatStore } from '@/stores/chat'
 import { formatApiError } from '@/api/client'
 import {
   knowledgeBaseStatusText,
@@ -34,6 +36,7 @@ import {
 import DocumentStatusCards from '@/components/DocumentStatusCards.vue'
 import DocumentTable from '@/components/DocumentTable.vue'
 import DocumentUploadModal from '@/components/DocumentUploadModal.vue'
+import ChatSsePanel from '@/components/ChatSsePanel.vue'
 
 type TabKey = 'documents' | 'retrieve' | 'chat' | 'config'
 const VALID_TABS: TabKey[] = ['documents', 'retrieve', 'chat', 'config']
@@ -42,6 +45,7 @@ const route = useRoute()
 const router = useRouter()
 const kbStore = useKnowledgeBaseStore()
 const docStore = useDocumentStore()
+const chatStore = useChatStore()
 const { detail, detailState, detailError } = storeToRefs(kbStore)
 const { list: docList, listState: docListState, listError: docListError } = storeToRefs(docStore)
 
@@ -110,6 +114,7 @@ watch(
   (id) => {
     if (!id) return
     docStore.reset()
+    chatStore.reset()
     void kbStore.fetchDetail(id)
     void docStore.fetchList(id)
   },
@@ -126,6 +131,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   // 停止所有轮询并重置文档 store，避免内存泄漏与跨知识库污染
   docStore.reset()
+  // 取消进行中的 SSE 请求并重置聊天 store
+  chatStore.reset()
   kbStore.resetDetail()
 })
 </script>
@@ -232,14 +239,14 @@ onBeforeUnmount(() => {
         <!-- 检索测试（占位） -->
         <TabPane key="retrieve" tab="检索测试">
           <div class="kb-detail__placeholder">
-            <Empty description="检索测试将在 P1.4 实现" />
+            <Empty description="检索测试将在后续实现" />
           </div>
         </TabPane>
 
-        <!-- 聊天问答（占位） -->
+        <!-- 聊天问答（真实 SSE 流式问答，P1.4-A） -->
         <TabPane key="chat" tab="聊天问答">
-          <div class="kb-detail__placeholder">
-            <Empty description="聊天问答将在 P1.4 实现" />
+          <div class="kb-detail__tab-content">
+            <ChatSsePanel :kb-id="kbId" :kb-name="detail?.name" />
           </div>
         </TabPane>
 

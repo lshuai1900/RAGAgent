@@ -109,3 +109,59 @@ export interface DocumentUploadResponse {
 /** 文档分页响应 data */
 export interface DocumentPage extends PageResponse<DocumentOut> {}
 
+// ===== 聊天（与 docs/FRONTEND_API_CONTRACT.md 3.8 对齐）=====
+
+/** SSE 流式问答请求体 */
+export interface ChatSseRequest {
+  /** 会话 ID（前端用 crypto.randomUUID 生成） */
+  session_id: string
+  /** 知识库 ID */
+  kb_id: string
+  /** 用户问题 */
+  question: string
+  /** 检索 top_k，默认 5（1-50） */
+  top_k?: number
+  /** 采样温度，默认 0.0（0.0-2.0） */
+  temperature?: number
+  /** nucleus sampling，默认 1.0（0.0-1.0） */
+  top_p?: number
+  /** 最大输出 token 数，默认 null */
+  max_tokens?: number | null
+}
+
+/** 引用来源单条（字段尽量兼容后端实际返回） */
+export interface RetrievalContextItem {
+  /** 分块编号 */
+  chunk_id?: string
+  /** 文档编号 */
+  document_id?: string
+  /** 相似度分数 */
+  score?: number
+  /** 内容摘要 */
+  content?: string
+  /** 检索通道（如有） */
+  retrieval_channel?: string
+  /** 兼容后端扩展字段 */
+  [k: string]: unknown
+}
+
+/** 前端本地消息（用于流式展示，不与后端 ChatMessageOut 混用） */
+export interface ChatMessage {
+  /** 前端生成的主键 */
+  id: string
+  /** 角色：user / assistant */
+  role: 'user' | 'assistant'
+  /** 内容（assistant 在 delta 期间逐步追加） */
+  content: string
+  /** 助手消息状态：sending（开始生成）→ receiving（生成中）→ done / error */
+  status: 'sending' | 'receiving' | 'done' | 'error'
+  /** 追踪编号（start / done / error 事件携带） */
+  trace_id: string
+  /** 错误信息（中文） */
+  error_message: string
+  /** 引用来源（done 事件携带时填充，否则 null） */
+  retrieval_context: RetrievalContextItem[] | null
+  /** 创建时间（ISO） */
+  created_at: string
+}
+
