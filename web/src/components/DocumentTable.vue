@@ -4,9 +4,10 @@
  *
  * 改造说明：从原 Antd Table 重表格风格改为 Yuxi 风格的行列表：
  * - 顶部：搜索框（靠左，圆角，浅边框，约 200px）
- * - 列表：FileListItem 行（文件类型徽标 + 文件名 + 状态徽标）
+ * - 列表：FileListItem 行（文件类型徽标 + 文件名 + 状态徽标 + 操作菜单）
  * - 空状态：暂无文档，请点击"上传"添加知识库文档
  * - 仅前端本地按文件名搜索，不接后端
+ * - 透传 FileListItem 的 rename / delete / reprocess 事件给父组件
  */
 import { computed, ref } from 'vue'
 import { Input, Spin, Empty } from 'ant-design-vue'
@@ -17,8 +18,17 @@ import FileListItem from '@/components/FileListItem.vue'
 interface Props {
   documents: DocumentOut[]
   loading?: boolean
+  /** 操作进行中（重命名 / 删除 / 重新处理），透传给 FileListItem 禁用菜单 */
+  actionLoading?: boolean
 }
 const props = defineProps<Props>()
+
+interface Emits {
+  (e: 'rename', document: DocumentOut): void
+  (e: 'delete', document: DocumentOut): void
+  (e: 'reprocess', document: DocumentOut): void
+}
+const emit = defineEmits<Emits>()
 
 const keyword = ref<string>('')
 
@@ -36,6 +46,16 @@ const isTotalEmpty = computed(
 const isNoMatch = computed(
   () => !props.loading && props.documents.length > 0 && filtered.value.length === 0,
 )
+
+function handleRename(doc: DocumentOut): void {
+  emit('rename', doc)
+}
+function handleDelete(doc: DocumentOut): void {
+  emit('delete', doc)
+}
+function handleReprocess(doc: DocumentOut): void {
+  emit('reprocess', doc)
+}
 </script>
 
 <template>
@@ -82,6 +102,10 @@ const isNoMatch = computed(
           v-for="doc in filtered"
           :key="doc.id"
           :document="doc"
+          :action-loading="actionLoading"
+          @rename="handleRename"
+          @delete="handleDelete"
+          @reprocess="handleReprocess"
         />
       </div>
     </div>

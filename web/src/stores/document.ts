@@ -12,9 +12,18 @@ import {
   uploadDocument as apiUploadDocument,
   listDocuments as apiListDocuments,
   getDocument as apiGetDocument,
+  updateDocument as apiUpdateDocument,
+  deleteDocument as apiDeleteDocument,
+  reprocessDocument as apiReprocessDocument,
 } from '@/api/documents'
 import { isTerminalDocumentStatus } from '@/utils/status'
-import type { DocumentOut, DocumentPage, DocumentUploadResponse } from '@/types/api'
+import type {
+  DocumentDeleteResponse,
+  DocumentOut,
+  DocumentPage,
+  DocumentUpdate,
+  DocumentUploadResponse,
+} from '@/types/api'
 
 export type LoadState = 'idle' | 'loading' | 'success' | 'error'
 
@@ -99,6 +108,90 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  // ===== 重命名文档 =====
+  const renaming = ref<boolean>(false)
+  const renameError = ref<string>('')
+
+  async function renameDocument(
+    kbId: string,
+    documentId: string,
+    payload: DocumentUpdate,
+  ): Promise<DocumentOut> {
+    renaming.value = true
+    renameError.value = ''
+    try {
+      const doc = await apiUpdateDocument(kbId, documentId, payload)
+      // 同步更新列表中的该条记录（保持原顺序）
+      upsertDocument(doc)
+      return doc
+    } catch (err) {
+      renameError.value = formatApiError(err)
+      throw err
+    } finally {
+      renaming.value = false
+    }
+  }
+
+  // ===== 删除文档 =====
+  const deleting = ref<boolean>(false)
+  const deleteError = ref<string>('')
+
+  async function deleteDocument(
+    kbId: string,
+    documentId: string,
+  ): Promise<DocumentDeleteResponse> {
+    deleting.value = true
+    deleteError.value = ''
+    try {
+      const result = await apiDeleteDocument(kbId, documentId)
+      // 从列表移除该文档，并同步 total
+      const idx = list.value.findIndex((d) => d.id === documentId)
+      if (idx >= 0) {
+        list.value.splice(idx, 1)
+        total.value = Math.max(0, total.value - 1)
+      }
+      // 停止该文档的轮询（如有）
+      const timer = pollingTimers.get(documentId)
+      if (timer) {
+        clearTimeout(timer)
+        pollingTimers.delete(documentId)
+      }
+      return result
+    } catch (err) {
+      deleteError.value = formatApiError(err)
+      throw err
+    } finally {
+      deleting.value = false
+    }
+  }
+
+  // ===== 重新处理文档 =====
+  const reprocessing = ref<boolean>(false)
+  const reprocessError = ref<string>('')
+
+  async function reprocessDocument(
+    kbId: string,
+    documentId: string,
+  ): Promise<DocumentOut> {
+    reprocessing.value = true
+    reprocessError.value = ''
+    try {
+      const doc = await apiReprocessDocument(kbId, documentId)
+      // 同步更新列表中的该条记录（状态变为 embedding）
+      upsertDocument(doc)
+      // 启动轮询，直到进入终态
+      if (!isTerminalDocumentStatus(doc.status)) {
+        startPolling(documentId)
+      }
+      return doc
+    } catch (err) {
+      reprocessError.value = formatApiError(err)
+      throw err
+    } finally {
+      reprocessing.value = false
+    }
+  }
+
   /** 更新或插入单条文档到列表（保持原顺序） */
   function upsertDocument(doc: DocumentOut): void {
     const idx = list.value.findIndex((d) => d.id === doc.id)
@@ -160,6 +253,12 @@ export const useDocumentStore = defineStore('document', () => {
     listError.value = ''
     uploading.value = false
     uploadError.value = ''
+    renaming.value = false
+    renameError.value = ''
+    deleting.value = false
+    deleteError.value = ''
+    reprocessing.value = false
+    reprocessError.value = ''
     currentKbId.value = ''
   }
 
@@ -177,6 +276,18 @@ export const useDocumentStore = defineStore('document', () => {
     upload,
     // 单文档
     refreshDocument,
+    // 重命名
+    renaming,
+    renameError,
+    renameDocument,
+    // 删除
+    deleting,
+    deleteError,
+    deleteDocument,
+    // 重新处理
+    reprocessing,
+    reprocessError,
+    reprocessDocument,
     // 轮询
     startPolling,
     stopAllPolling,

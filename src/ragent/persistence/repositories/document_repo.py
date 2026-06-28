@@ -38,6 +38,40 @@ class DocumentRepository(BaseRepository[Document]):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_id_and_kb(self, document_id: str, kb_id: str) -> Document | None:
+        """按 ID + 知识库 ID 查询（kb 作用域内的文档操作用）。
+
+        Args:
+            document_id: 文档 ID
+            kb_id: 知识库 ID
+
+        Returns:
+            Document 或 None（不存在或不属于该知识库）
+        """
+        stmt = select(Document).where(
+            Document.id == document_id,
+            Document.kb_id == kb_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_name_in_kb(self, name: str, kb_id: str) -> Document | None:
+        """按文件名 + 知识库 ID 查询（用于重命名重名校验）。
+
+        Args:
+            name: 文件名
+            kb_id: 知识库 ID
+
+        Returns:
+            Document 或 None
+        """
+        stmt = select(Document).where(
+            Document.name == name,
+            Document.kb_id == kb_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list_by_kb(
         self,
         kb_id: str,

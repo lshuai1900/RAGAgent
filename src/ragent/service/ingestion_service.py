@@ -20,9 +20,11 @@ from __future__ import annotations
 import hashlib
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from fastapi import BackgroundTasks
 
+from ragent.domain.dto import ChunkDraft
 from ragent.domain.enums import DocumentStatus
 from ragent.framework.core.exceptions import BizException
 from ragent.framework.core.logging import get_logger
@@ -30,10 +32,17 @@ from ragent.framework.core.snowflake import generate_id
 from ragent.framework.db.session import get_session_factory
 from ragent.ingestion.pipeline import IngestionPipeline
 from ragent.persistence.models.document import Document
+from ragent.persistence.models.knowledge_base import KnowledgeBase
 from ragent.persistence.repositories.chunk_repo import DocumentChunkRepository
 from ragent.persistence.repositories.document_repo import DocumentRepository
 from ragent.persistence.repositories.knowledge_base_repo import KnowledgeBaseRepository
-from ragent.schemas.document import DocumentOut, DocumentPage, DocumentUploadResponse
+from ragent.schemas.document import (
+    DocumentDeleteResponse,
+    DocumentOut,
+    DocumentPage,
+    DocumentUpdate,
+    DocumentUploadResponse,
+)
 
 _logger = get_logger(__name__)
 
@@ -41,6 +50,13 @@ _logger = get_logger(__name__)
 _ALLOWED_FILE_TYPES = {"txt", "md", "markdown", "pdf"}
 # 临时文件目录前缀（BackgroundTasks 执行完毕后清理）
 _UPLOAD_DIR_PREFIX = "ragent_upload_"
+
+# 知识库 / 文档不存在错误码（HTTP 404）
+_KB_NOT_FOUND_CODE = 10404
+_DOC_NOT_FOUND_CODE = 10304
+_NOT_FOUND_HTTP_STATUS = 404
+# 同一知识库内文档重名错误码（HTTP 400）
+_DOC_DUPLICATE_NAME_CODE = 10301
 
 
 class IngestionService:
@@ -52,6 +68,7 @@ class IngestionService:
         kb_repo: KnowledgeBaseRepository,
         document_repo: DocumentRepository,
         pipeline: IngestionPipeline,
+        chunk_repo: DocumentChunkRepository | None = None,
     ) -> None:
         """初始化 IngestionService。
 
@@ -59,10 +76,18 @@ class IngestionService:
             kb_repo: 知识库 Repository
             document_repo: 文档 Repository
             pipeline: 摄取 Pipeline（已注入 embedding_client / vector_store）
+            chunk_repo: 分块 Repository（删除/重处理用）；None 时按需从 document_repo.session 构造
         """
         self._kb_repo = kb_repo
         self._document_repo = document_repo
         self._pipeline = pipeline
+        self._chunk_repo = chunk_repo
+
+    def _get_chunk_repo(self) -> DocumentChunkRepository:
+        """获取分块 Repository（懒构造，复用 document_repo 的 session）。"""
+        if self._chunk_repo is None:
+            self._chunk_repo = DocumentChunkRepository(self._document_repo.session)
+        return self._chunk_repo
 
     async def upload_document(
         self,
@@ -252,6 +277,333 @@ class IngestionService:
             page=page,
             page_size=page_size,
         )
+
+    async def update_document(
+        self,
+        *,
+        kb_id: str,
+        document_id: str,
+        payload: DocumentUpdate,
+    ) -> DocumentOut:
+        """重命名文档（同一知识库内文件名唯一）。
+
+        流程：
+        1. 校验知识库存在
+        2. 校验文档存在且属于该知识库
+        3. 同名校验：同一知识库下不能与其他文档重名
+        4. 更新 filename 并返回
+
+        Args:
+            kb_id: 知识库 ID
+            document_id: 文档 ID
+            payload: 更新请求（filename）
+
+        Returns:
+            DocumentOut 响应
+
+        Raises:
+            BizException: 知识库/文档不存在（404）/ 同名文件（400）
+        """
+        await self._ensure_kb_exists(kb_id)
+        doc = await self._ensure_doc_in_kb(document_id, kb_id)
+
+        new_name = payload.filename
+        if new_name != doc.name:
+            duplicate = await self._document_repo.get_by_name_in_kb(new_name, kb_id)
+            if duplicate is not None and duplicate.id != document_id:
+                raise BizException(
+                    message=f"当前知识库中已存在同名文件: {new_name}",
+                    code=_DOC_DUPLICATE_NAME_CODE,
+                )
+            doc.name = new_name
+            await self._document_repo.session.flush()
+            await self._document_repo.session.commit()
+            await self._document_repo.session.refresh(doc)
+            _logger.info("document_renamed", document_id=document_id, kb_id=kb_id, name=new_name)
+
+        return DocumentOut.model_validate(doc)
+
+    async def delete_document(
+        self,
+        *,
+        kb_id: str,
+        document_id: str,
+    ) -> DocumentDeleteResponse:
+        """删除文档（同时删除向量索引 + 分块元数据 + 文档记录）。
+
+        流程：
+        1. 校验知识库存在
+        2. 校验文档存在且属于该知识库
+        3. 删除 Milvus 向量索引（best-effort，失败仅日志）
+        4. 删除 PG 分块元数据
+        5. 删除 PG 文档记录
+        6. 递减知识库文档计数
+        7. 返回删除响应
+
+        重要：必须删除向量库中的 chunks/embeddings，否则 RAG 检索仍会命中已删除文件。
+
+        Args:
+            kb_id: 知识库 ID
+            document_id: 文档 ID
+
+        Returns:
+            DocumentDeleteResponse 响应
+
+        Raises:
+            BizException: 知识库/文档不存在（404）
+        """
+        kb = await self._ensure_kb_exists(kb_id)
+        doc = await self._ensure_doc_in_kb(document_id, kb_id)
+        collection_name = kb.collection_name
+
+        chunk_repo = self._get_chunk_repo()
+
+        # 1. 删除 Milvus 向量索引（best-effort，失败仅记录日志，不阻断 DB 删除）
+        try:
+            await self._pipeline.vector_store.delete_by_document(collection_name, document_id)
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning(
+                "milvus_delete_by_document_failed_on_doc_delete",
+                document_id=document_id,
+                collection_name=collection_name,
+                error=str(exc),
+            )
+
+        # 2. 删除 PG 分块元数据
+        deleted_chunks = await chunk_repo.delete_by_document(document_id)
+        _logger.info(
+            "document_chunks_deleted",
+            document_id=document_id,
+            deleted_chunk_count=deleted_chunks,
+        )
+
+        # 3. 删除 PG 文档记录
+        await self._document_repo.delete(doc)
+        # 4. 递减知识库文档计数
+        await self._kb_repo.increment_document_count(kb_id, delta=-1)
+        await self._document_repo.session.commit()
+
+        _logger.info(
+            "document_deleted",
+            document_id=document_id,
+            kb_id=kb_id,
+            collection_name=collection_name,
+        )
+        return DocumentDeleteResponse(
+            id=document_id,
+            kb_id=kb_id,
+            status=DocumentStatus.COMPLETED.value,
+        )
+
+    async def reprocess_document(
+        self,
+        *,
+        kb_id: str,
+        document_id: str,
+        background_tasks: BackgroundTasks,
+    ) -> DocumentOut:
+        """重新处理文档（删除旧向量 + 旧分块，重新 embedding + 索引）。
+
+        MVP 约束：原始上传文件未持久化（仅临时文件，pipeline 完成后清理），
+        因此重新处理 = 复用已存储的分块内容（t_document_chunk.content）重新
+        embedding + 索引，而非重新解析/分块。适用于 Embedding 模型变更或
+        索引失败的场景。若文档无任何分块内容（解析/分块阶段失败），则拒绝并
+        提示重新上传。
+
+        流程：
+        1. 校验知识库 + 文档
+        2. 读取已有分块内容（供后台重新 embedding）
+        3. 无分块内容则拒绝
+        4. 删除旧 Milvus 向量 + 旧 PG 分块
+        5. 状态置为 embedding，提交
+        6. 注册 BackgroundTask：重新 embedding + 索引 + 更新状态机
+        7. 返回当前文档信息
+
+        Args:
+            kb_id: 知识库 ID
+            document_id: 文档 ID
+            background_tasks: FastAPI BackgroundTasks
+
+        Returns:
+            DocumentOut 响应（状态已变为 embedding）
+
+        Raises:
+            BizException: 知识库/文档不存在（404）/ 无可重新处理内容（400）
+        """
+        kb = await self._ensure_kb_exists(kb_id)
+        doc = await self._ensure_doc_in_kb(document_id, kb_id)
+        collection_name = kb.collection_name
+        chunk_repo = self._get_chunk_repo()
+
+        # 1. 读取已有分块内容（在删除前保存，供后台重新 embedding）
+        chunk_contents = await chunk_repo.list_contents_by_document(document_id)
+        if not chunk_contents:
+            raise BizException(
+                message="该文档无可重新处理的内容（未完成分块），请删除后重新上传文件",
+                code=10302,
+            )
+
+        # 2. 删除旧 Milvus 向量（best-effort）
+        try:
+            await self._pipeline.vector_store.delete_by_document(collection_name, document_id)
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning(
+                "milvus_delete_by_document_failed_on_reprocess",
+                document_id=document_id,
+                collection_name=collection_name,
+                error=str(exc),
+            )
+
+        # 3. 删除旧 PG 分块元数据 + 重置统计
+        await chunk_repo.delete_by_document(document_id)
+        await self._document_repo.update_status(
+            document_id,
+            DocumentStatus.EMBEDDING.value,
+            error_message=None,
+            chunk_count=0,
+        )
+        doc.total_tokens = 0
+        await self._document_repo.session.commit()
+
+        # 4. 注册 BackgroundTask：重新 embedding + 索引
+        background_tasks.add_task(
+            self._run_reprocess_async,
+            kb_id=kb_id,
+            document_id=document_id,
+            collection_name=collection_name,
+            embedding_dim=kb.embedding_dim,
+            chunk_contents=chunk_contents,
+        )
+
+        _logger.info(
+            "document_reprocess_submitted",
+            document_id=document_id,
+            kb_id=kb_id,
+            chunk_count=len(chunk_contents),
+        )
+        # 重新读取最新状态返回
+        refreshed = await self._document_repo.get_by_id(document_id)
+        return DocumentOut.model_validate(refreshed or doc)
+
+    async def _ensure_kb_exists(self, kb_id: str) -> KnowledgeBase:
+        """校验知识库存在，返回 KB 实体。"""
+        kb = await self._kb_repo.get_by_id(kb_id)
+        if kb is None:
+            raise BizException(
+                message=f"知识库不存在: {kb_id}",
+                code=_KB_NOT_FOUND_CODE,
+                http_status=_NOT_FOUND_HTTP_STATUS,
+            )
+        return kb
+
+    async def _ensure_doc_in_kb(self, document_id: str, kb_id: str) -> Document:
+        """校验文档存在且属于该知识库，返回 Document 实体。"""
+        doc = await self._document_repo.get_by_id_and_kb(document_id, kb_id)
+        if doc is None:
+            raise BizException(
+                message=f"文档不存在或不属于该知识库: {document_id}",
+                code=_DOC_NOT_FOUND_CODE,
+                http_status=_NOT_FOUND_HTTP_STATUS,
+            )
+        return doc
+
+    async def _run_reprocess_async(
+        self,
+        *,
+        kb_id: str,
+        document_id: str,
+        collection_name: str,
+        embedding_dim: int,
+        chunk_contents: list[dict[str, Any]],
+    ) -> None:
+        """BackgroundTask：从已有分块内容重新 embedding + 索引。
+
+        复用 pipeline.embed / pipeline.index 阶段（不重新 parse/chunk，
+        因为原始文件未持久化）。
+
+        Args:
+            kb_id: 知识库 ID
+            document_id: 文档 ID
+            collection_name: Milvus collection 名
+            embedding_dim: 向量维度
+            chunk_contents: 已保存的分块内容列表 [{content, chunk_index, metadata}]
+        """
+        session_factory = get_session_factory()
+        try:
+            async with session_factory() as session:
+                doc_repo = DocumentRepository(session)
+                chunk_repo = DocumentChunkRepository(session)
+
+                # 构造 ChunkDraft 列表（复用已有内容与 metadata）
+                chunks = [
+                    ChunkDraft(
+                        content=cc["content"],
+                        chunk_index=cc["chunk_index"],
+                        metadata=dict(cc.get("metadata") or {}),
+                    )
+                    for cc in chunk_contents
+                ]
+
+                # embedding → indexing
+                await doc_repo.update_status(document_id, DocumentStatus.EMBEDDING.value)
+                await session.commit()
+                vectors = await self._pipeline.embed(chunks)
+
+                await doc_repo.update_status(document_id, DocumentStatus.INDEXING.value)
+                await session.commit()
+                # ensure collection（幂等，防止 collection 被删后重建失败）
+                await self._pipeline.vector_store.ensure_collection(collection_name, embedding_dim)
+
+                indexed = await self._pipeline.index(
+                    collection_name,
+                    chunks,
+                    vectors,
+                    document_id=document_id,
+                    kb_id=kb_id,
+                    chunk_repo=chunk_repo,
+                )
+
+                total_tokens = sum(IngestionPipeline._estimate_tokens(c.content) for c in chunks)
+                await doc_repo.update_status(
+                    document_id,
+                    DocumentStatus.COMPLETED.value,
+                    chunk_count=indexed,
+                )
+                doc = await doc_repo.get_by_id(document_id)
+                if doc is not None:
+                    doc.total_tokens = total_tokens
+                await session.commit()
+
+                _logger.info(
+                    "reprocess_completed",
+                    document_id=document_id,
+                    kb_id=kb_id,
+                    chunk_count=indexed,
+                    total_tokens=total_tokens,
+                )
+        except Exception as exc:  # noqa: BLE001
+            _logger.error(
+                "reprocess_failed",
+                document_id=document_id,
+                kb_id=kb_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            try:
+                async with session_factory() as session:
+                    doc_repo = DocumentRepository(session)
+                    await doc_repo.update_status(
+                        document_id,
+                        DocumentStatus.FAILED.value,
+                        error_message=self._truncate_error(str(exc)),
+                    )
+                    await session.commit()
+            except Exception as inner_exc:  # noqa: BLE001
+                _logger.error(
+                    "reprocess_failed_status_update_error",
+                    document_id=document_id,
+                    error=str(inner_exc),
+                )
 
     async def _run_pipeline_async(
         self,

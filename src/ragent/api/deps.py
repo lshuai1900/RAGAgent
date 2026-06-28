@@ -169,12 +169,14 @@ def get_ingestion_service(
     kb_repo: KnowledgeBaseRepository = Depends(get_kb_repo),
     document_repo: DocumentRepository = Depends(get_document_repo),
     pipeline: IngestionPipeline = Depends(get_pipeline),
+    chunk_repo: DocumentChunkRepository = Depends(get_chunk_repo),
 ) -> IngestionService:
     """请求级 IngestionService。"""
     return IngestionService(
         kb_repo=kb_repo,
         document_repo=document_repo,
         pipeline=pipeline,
+        chunk_repo=chunk_repo,
     )
 
 
