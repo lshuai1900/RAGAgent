@@ -29,6 +29,7 @@ const props = defineProps<Props>()
 interface Emits {
   (e: 'back'): void
   (e: 'refresh'): void
+  (e: 'edit'): void
 }
 const emit = defineEmits<Emits>()
 
@@ -51,9 +52,9 @@ async function handleCopyId(): Promise<void> {
   }
 }
 
-/** 编辑知识库：后端无接口，仅提示规划中 */
+/** 编辑知识库：交由父组件打开编辑弹窗 */
 function handleEdit(): void {
-  message.info('编辑知识库能力将在后续版本实现')
+  emit('edit')
 }
 </script>
 

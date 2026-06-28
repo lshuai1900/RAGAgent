@@ -76,6 +76,20 @@ export interface KnowledgeBaseOut {
 /** 知识库分页响应 data */
 export interface KnowledgeBasePage extends PageResponse<KnowledgeBaseOut> {}
 
+/** 更新知识库请求体（部分更新，字段均可选） */
+export interface KnowledgeBaseUpdate {
+  name?: string
+  description?: string | null
+  status?: 'active' | 'archived'
+}
+
+/** 删除知识库响应 data */
+export interface KnowledgeBaseDeleteResponse {
+  id: string
+  status: string
+  collection_name: string
+}
+
 // ===== 文档（与 docs/FRONTEND_API_CONTRACT.md 3.5-3.7 对齐）=====
 
 /** 文档响应 */

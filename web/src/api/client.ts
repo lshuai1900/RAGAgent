@@ -67,7 +67,7 @@ export class NetworkError extends Error {
 
 /** 通用请求选项 */
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   /** JSON 请求体（自动序列化） */
   body?: unknown
   /** 自定义请求头 */
