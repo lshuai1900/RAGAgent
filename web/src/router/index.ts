@@ -19,6 +19,13 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '知识库' },
   },
   {
+    path: '/knowledge-bases/:kbId',
+    name: 'knowledgeBaseDetail',
+    component: () => import('@/views/KnowledgeBaseDetailView.vue'),
+    meta: { title: '知识库详情' },
+    props: true,
+  },
+  {
     path: '/chat',
     name: 'chat',
     component: () => import('@/views/ChatView.vue'),

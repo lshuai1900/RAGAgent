@@ -42,3 +42,37 @@ export interface HealthResponse {
     milvus: ComponentStatus
   }
 }
+
+// ===== 知识库（与 docs/FRONTEND_API_CONTRACT.md 3.2-3.4 对齐）=====
+
+/** 创建知识库请求体 */
+export interface KnowledgeBaseCreate {
+  name: string
+  description?: string | null
+  embedding_model?: string
+  embedding_dim?: number
+  chunk_strategy?: 'fixed' | 'sentence' | 'recursive'
+  chunk_size?: number
+  chunk_overlap?: number
+}
+
+/** 知识库响应 */
+export interface KnowledgeBaseOut {
+  id: string
+  name: string
+  description: string | null
+  collection_name: string
+  embedding_dim: number
+  embedding_model: string
+  chunk_strategy: string
+  chunk_size: number
+  chunk_overlap: number
+  document_count: number
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+/** 知识库分页响应 data */
+export interface KnowledgeBasePage extends PageResponse<KnowledgeBaseOut> {}
+
