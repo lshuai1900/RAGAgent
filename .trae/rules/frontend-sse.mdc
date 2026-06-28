@@ -1,0 +1,94 @@
+---
+description: 前端 SSE 流式问答规范（fetch + ReadableStream）
+globs: "web/src/api/chat.ts,web/src/composables/useSseChat.ts,web/src/components/chat/**,web/src/stores/chat.ts"
+---
+
+# frontend-sse
+
+## 适用范围
+`web/src/api/chat.ts`、`web/src/composables/useSseChat.ts`、`web/src/components/chat/`、`web/src/stores/chat.ts`。
+
+## 接口
+- 后端 SSE 接口：`POST /api/v1/chat/sse`
+- 该接口**不走** `ApiResponse` 包装，返回 `text/event-stream`
+
+## 硬约束
+- ❌ **禁止使用 `EventSource`**（EventSource 仅支持 GET，无法发送 JSON body）
+- ✅ **必须用 `fetch + ReadableStream`** 解析 SSE 事件流
+
+## 请求
+- Method：`POST`
+- Headers：`Content-Type: application/json`、`Accept: text/event-stream`
+- Body（JSON，ChatSseRequest）：
+```json
+{
+  "session_id": "...",
+  "kb_id": "...",
+  "question": "...",
+  "top_k": 5,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "max_tokens": null
+}
+```
+- `session_id` 由前端用 `crypto.randomUUID` 生成，"新建对话"重置
+
+## 事件格式（SSE 规范）
+```
+event: {type}
+data: {json_string}
+
+```
+
+## 四类事件（与后端 framework/sse/emitter.py 一致）
+
+| 事件 | event 字段 | data 字段 | 时机 |
+|---|---|---|---|
+| 开始 | `start` | `{"trace_id": "..."}` | 连接建立后立即发送 |
+| 增量 | `delta` | `{"content": "..."}` | LLM 每个 token 到达 |
+| 结束 | `done` | `{"trace_id": "...", "finish_reason": "stop"}` | LLM 输出完成 |
+| 错误 | `error` | `{"trace_id": "...", "code": 30001, "message": "..."}` | 异常发生时 |
+
+## 解析流程
+1. `fetch` 拿到 `Response`，取 `response.body.getReader()`
+2. 用 `TextDecoder` 解码 chunk，按 SSE 帧边界（`\n\n`）切分
+3. 每帧解析 `event:` 与 `data:` 行
+4. 按事件类型回调：
+   - `start` → 记录 `trace_id`，状态置"接收中"
+   - `delta` → 把 `content` 追加到当前助手消息
+   - `done` → 状态置"完成"，停止接收
+   - `error` → 状态置"错误"，展示中文 message + 追踪编号
+5. 忽略非约定事件（如后端心跳 `ping`）
+
+## 错误处理
+- 收到 `error` 事件：助手消息区展示 `message`，附"追踪编号：{trace_id}"
+- `fetch` 本身失败（无法建立连接）：`message.error("连接后端失败，请检查 API 地址设置")`
+- 流中断（未收到 `done` / `error` 即结束）：`message.error("回答中断，请重试")`
+- HTTP 状态非 2xx：尝试解析 body（可能后端返回 ApiResponse 错误），失败用通用中文文案
+
+## 连接断开处理
+- 客户端主动断开：调 `reader.cancel()` 或 `AbortController.abort()`
+- 组件卸载：`onUnmounted` 中 abort 进行中的请求，避免内存泄漏
+- 后端客户端断开会捕获 `asyncio.CancelledError`，不影响服务端
+
+## 状态机（useSseChat）
+```
+idle → sending → (start) → receiving → (done|error) → idle
+                                    ↘ (abort) → idle
+```
+- `sending` / `receiving` 期间输入框 + 发送按钮禁用，避免重复发送
+- 首个 `delta` 到达前显示"正在思考…"
+
+## 引用来源（已知限制）
+- 当前后端 `done` 事件**不携带引用来源**（citations）
+- 前端 MVP 引用来源区域显示占位"本次回答无引用来源"
+- 后续若后端在 `done` 扩展 `citations` 字段，前端再补渲染逻辑
+
+## 禁止行为
+- ❌ 禁止使用 `EventSource`
+- ❌ 禁止把 SSE 接口当 ApiResponse 解析（SSE 不走统一包装）
+- ❌ 禁止忽略 `error` 事件（必须展示中文 message + 追踪编号）
+- ❌ 禁止在发送中允许重复点击发送
+- ❌ 禁止组件卸载时不 abort 进行中的请求
+- ❌ 禁止把英文 error message 原样展示给用户
+- ❌ 禁止假设 `done` 一定携带 citations（当前后端未下发）

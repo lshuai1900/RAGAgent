@@ -1,0 +1,75 @@
+---
+description: 前端 API 客户端与对接边界规范
+globs: "web/src/api/**,web/src/stores/**,web/src/composables/**,web/src/types/**"
+---
+
+# frontend-api-client
+
+## 适用范围
+`web/src/api/`、`web/src/stores/`、`web/src/composables/`、`web/src/types/` 中涉及后端对接的代码。
+
+## 对接边界（硬约束）
+- 前端**只调用** FastAPI 后端，接口清单见 `docs/FRONTEND_API_CONTRACT.md`
+- 前端**禁止**直接访问 PostgreSQL / Milvus / Embedding API / LLM API
+- 前端**不存储**任何 API Key / 数据库密码 / 模型密钥
+- localStorage 仅存 `ragent.apiBaseUrl`（非敏感）
+
+## API Base URL
+- 从 localStorage 读取，key：`ragent.apiBaseUrl`
+- 默认值：`http://localhost:8000`
+- 所有请求基于该 Base URL 拼接相对路径
+- 用户可在"设置"页修改并保存
+
+## 统一响应解析（ApiResponse<T>）
+后端非 SSE 接口返回：
+```json
+{ "code": 0, "message": "OK", "data": {...}, "trace_id": "xxx" }
+```
+
+`api/client.ts` 解析规则：
+1. HTTP 非 2xx → 抛 `ApiError`（尝试从 body 解析 code/message/trace_id，失败用通用中文文案）
+2. HTTP 2xx 但 `code !== 0` → 抛 `ApiError`（含 code / message / trace_id）
+3. `code === 0` → 返回 `data`
+4. 网络异常（fetch reject） → 抛 `NetworkError`（中文文案"连接后端失败"）
+
+## 错误处理
+- `code !== 0`：展示后端返回的 `message`（已为中文友好文案）
+- 错误提示形式：`message.error("{message}，追踪编号：{trace_id}")`
+- trace_id 为空字符串时不追加追踪编号
+- 网络异常：`message.error("连接后端失败，请检查 API 地址设置")`
+
+## 分层职责
+- `api/client.ts`：统一 fetch 封装（baseUrl 拼接、请求头、ApiResponse 解析、错误处理）
+- `api/{module}.ts`：每个业务文件导出与后端接口一一对应的函数
+- `stores/`：只调 `api/`，不直接发 fetch
+- `views/` / `components/`：不直接调 `api/`（经 store 或 composables）
+
+## 接口清单（前端只能调用以下接口）
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/health` | 健康检查 |
+| POST | `/api/v1/knowledge-bases` | 创建知识库 |
+| GET | `/api/v1/knowledge-bases` | 分页列出知识库 |
+| GET | `/api/v1/knowledge-bases/{kb_id}` | 查询单个知识库 |
+| POST | `/api/v1/documents/upload` | 上传文档（multipart） |
+| GET | `/api/v1/documents` | 分页列出文档（可按 kb_id 过滤） |
+| GET | `/api/v1/documents/{document_id}` | 查询单个文档状态 |
+| POST | `/api/v1/chat/sse` | 流式问答（SSE，不走 ApiResponse 包装） |
+
+> SSE 接口（`/api/v1/chat/sse`）的解析规则见 `.trae/rules/frontend-sse.mdc`，**不走**本文件的 ApiResponse 解析。
+
+## 禁止行为
+- ❌ 禁止前端直连 PostgreSQL / Milvus / Embedding API / LLM API
+- ❌ 禁止前端存储 API Key / 模型密钥
+- ❌ 禁止调用契约外接口（如文档删除、知识库删除、独立检索等，后端 MVP 未提供）
+- ❌ 禁止在 views/components 中直接调 fetch（必须经 api 层）
+- ❌ 禁止在 stores 中直接发 fetch（必须调 api 层）
+- ❌ 禁止硬编码接口路径在业务组件中（路径只在 `api/` 层出现）
+- ❌ 禁止把英文错误信息原样抛给用户
+- ❌ 禁止使用 axios（统一用 fetch）
+- ❌ 禁止使用 EventSource（SSE 用 fetch + ReadableStream，见 frontend-sse.mdc）
+
+## 类型对齐
+- `types/api.ts` 按 `docs/FRONTEND_API_CONTRACT.md` 手工定义 TypeScript 类型
+- 不自动生成（MVP 取舍）
+- 类型字段与后端 `schemas/` 保持一致
