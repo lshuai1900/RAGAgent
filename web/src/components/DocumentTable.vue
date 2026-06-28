@@ -101,7 +101,7 @@ const isNoMatch = computed(
 }
 
 .doc-list__search {
-  width: 200px;
+  width: 280px;
 }
 
 .doc-list__body {

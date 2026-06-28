@@ -1,74 +1,128 @@
 /**
- * 全局样式：Yuxi 风格知识库产品工作台（P1.8 高保真复刻）
+ * 全局样式：Yuxi 风格知识库产品工作台（视觉 1:1 复刻）
  *
- * 设计原则（参考 xerrors/Yuxi 的产品结构与交互风格，不复制源码）：
- * - 浅灰背景 + 白色内容面板 + 细边框
- * - 低饱和蓝绿色主色（#0f8fa3），统一应用于按钮 / Tab / 菜单 / 图标强调
- * - 高信息密度、克制配色、无渐变、轻阴影
- * - 不覆盖 Ant Design Vue 4 全局机制，仅通过 CSS 变量与轻量 class 覆盖
+ * 设计原则（参考 xerrors/Yuxi 的产品视觉规格，不复制源码、变量名、类名）：
+ * - 青蓝主色（#24839a / #046a82），非 Antd 默认蓝
+ * - 浅色背景 + 极淡边框（#eef0f0 / #eff2f2）
+ * - 卡片用极浅渐变背景，hover 边框变 #c4eaf5
+ * - 圆角：卡片/输入框 8px，按钮 6px
+ * - 输入框聚焦仅边框变色，无 box-shadow 光晕
+ * - 4px 细滚动条
  *
- * 注意：本文件仅做视觉与交互复刻，不复制 Yuxi 仓库的源码、组件命名、CSS 类名。
+ * 注意：本文件仅做视觉复刻，不复制 Yuxi 仓库的源码、组件命名、CSS 类名。
  * Yuxi 使用 MIT License，本项目仅做学习与工程复刻用途。
  */
 
 :root {
-  /* ===== 全局基础变量（保留供旧组件平滑过渡） ===== */
-  --app-bg: #f7f8fa;
-  --app-card-bg: #ffffff;
-  --app-border: #e5e7eb;
-  --app-border-strong: #d1d5db;
-  --app-radius: 6px;
-  --app-sidebar-bg: #ffffff;
-  --app-header-bg: #ffffff;
-  --app-text: #111827;
-  --app-text-secondary: #6b7280;
-  --app-text-tertiary: #9ca3af;
+  /* ===== Yuxi 青蓝主色板 ===== */
+  --kb-primary: #24839a;
+  --kb-primary-hover: #046a82;
+  --kb-primary-active: #023944;
+  --kb-primary-bright: #0188a6;
+  --kb-primary-icon: #3996ae;
+  --kb-primary-soft: #e1f6fb;
+  --kb-primary-soft-hover: #c4eaf5;
+  --kb-primary-border: #a3d8e8;
+  --kb-primary-bg: #f7fbfd;
+  --kb-primary-bg-hover: #f6f9fa;
+  --kb-primary-sidebar: #fcfefe;
 
-  /* ===== Yuxi 风格主题变量（P1.8 全局统一） ===== */
-  /* 主色：低饱和蓝绿色 */
-  --kb-primary: #0f8fa3;
-  --kb-primary-hover: #0b7f91;
-  --kb-primary-active: #096c7c;
-  --kb-primary-soft: #e6f7fa;
-  --kb-primary-soft-hover: #d4f0f5;
-  --kb-primary-border: #0f8fa3;
+  /* ===== 中性灰阶（Yuxi gray） ===== */
+  --kb-text: #151616;
+  --kb-text-strong: #0c0d0d;
+  --kb-text-title: #1e1f1f;
+  --kb-text-section: #323333;
+  --kb-text-secondary: #4c4d4d;
+  --kb-text-tertiary: #697070;
+  --kb-text-quaternary: #979999;
+  --kb-text-disabled: #bdbfbf;
+  --kb-text-border-disabled: #d7d9d9;
 
-  /* 旧别名（保留向后兼容） */
-  --kb-primary-bg: #e6f7fa;
-  --kb-primary-bg-hover: #d4f0f5;
+  --kb-border: #eef0f0;
+  --kb-border-light: #eff2f2;
+  --kb-border-strong: #e4e6e6;
+  --kb-border-hover: #d7d9d9;
 
-  /* 页面与内容 */
-  --kb-bg: #f7f8fa;
+  --kb-bg: #fbfcfc;
+  --kb-bg-soft: #f5f7f7;
+  --kb-bg-hover: #f5f7f7;
   --kb-surface: #ffffff;
+  --kb-surface-soft: #f8fafa;
   --kb-card-bg: #ffffff;
-  --kb-border: #e5e7eb;
-  --kb-border-light: #eef0f3;
+  --kb-card-bg-gradient: linear-gradient(45deg, #ffffff 0%, #f8fafa 100%);
+  --kb-card-bg-gradient-hover: linear-gradient(45deg, #ffffff 0%, #f7fbfd 100%);
+
+  /* ===== 圆角 ===== */
   --kb-radius: 8px;
+  --kb-radius-sm: 6px;
+  --kb-radius-lg: 12px;
+  --kb-radius-pill: 999px;
 
-  /* 文字 */
-  --kb-text: #111827;
-  --kb-text-secondary: #6b7280;
-  --kb-text-tertiary: #9ca3af;
-
-  /* 语义状态色 */
-  --kb-success: #22c55e;
-  --kb-success-bg: #dcfce7;
-  --kb-warning: #f59e0b;
-  --kb-warning-bg: #fef3c7;
-  --kb-error: #ef4444;
-  --kb-error-bg: #fee2e2;
-  --kb-processing: #3b82f6;
-  --kb-processing-bg: #dbeafe;
+  /* ===== 语义状态色（对齐 Yuxi） ===== */
+  --kb-success: #52c41a;
+  --kb-success-deep: #389e0d;
+  --kb-success-bg: #e6f7e6;
+  --kb-warning: #faad14;
+  --kb-warning-deep: #d48806;
+  --kb-warning-bg: #fffbe6;
+  --kb-warning-border: #ffe58f;
+  --kb-error: #ff4d4f;
+  --kb-error-deep: #cf1322;
+  --kb-error-bg: #fff2f0;
+  --kb-error-border: #ffccc7;
+  --kb-processing: #1890ff;
+  --kb-processing-bg: #e6f7ff;
+  --kb-accent: #13c2c2;
 
   /* 旧状态色别名（保留向后兼容） */
-  --kb-status-success: #22c55e;
-  --kb-status-success-bg: #dcfce7;
-  --kb-status-error: #ef4444;
-  --kb-status-error-bg: #fee2e2;
-  --kb-status-processing: #3b82f6;
-  --kb-status-processing-bg: #dbeafe;
-  --kb-status-pending: #f59e0b;
-  --kb-status-pending-bg: #fef3c7;
+  --kb-status-success: #52c41a;
+  --kb-status-success-bg: #e6f7e6;
+  --kb-status-error: #ff4d4f;
+  --kb-status-error-bg: #fff2f0;
+  --kb-status-processing: #1890ff;
+  --kb-status-processing-bg: #e6f7ff;
+  --kb-status-pending: #faad14;
+  --kb-status-pending-bg: #fffbe6;
+
+  /* ===== 阴影 ===== */
+  --kb-shadow-0: rgba(0, 0, 0, 0.02);
+  --kb-shadow-1: rgba(0, 0, 0, 0.05);
+  --kb-shadow-2: rgba(0, 0, 0, 0.08);
+  --kb-shadow-3: rgba(0, 0, 0, 0.12);
+  --kb-shadow-modal: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  /* ===== 页面间距 ===== */
+  --page-padding: 22px;
+
+  /* 旧别名（保留向后兼容） */
+  --app-bg: #fbfcfc;
+  --app-card-bg: #ffffff;
+  --app-border: #eef0f0;
+  --app-border-strong: #e4e6e6;
+  --app-radius: 8px;
+  --app-sidebar-bg: #fcfefe;
+  --app-header-bg: #ffffff;
+  --app-text: #151616;
+  --app-text-secondary: #4c4d4d;
+  --app-text-tertiary: #697070;
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --page-padding: 30px;
+  }
+}
+
+@media (max-width: 1199px) {
+  :root {
+    --page-padding: 18px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --page-padding: 14px;
+  }
 }
 
 html,
@@ -98,15 +152,16 @@ a {
 }
 
 /* =========================================================
- * 全局 Antd 主题轻量覆盖（统一蓝绿色主色，全页面生效）
+ * 全局 Antd 主题轻量覆盖（青蓝主色，全页面生效）
  * 不引入暗色模式，不自定义 Antd Token，仅 CSS 覆盖
  * ========================================================= */
 
-/* 主按钮：低饱和蓝绿色 */
+/* 主按钮：青蓝实心 */
 .ant-btn-primary {
   background-color: var(--kb-primary);
   border-color: var(--kb-primary);
   color: #ffffff;
+  border-radius: var(--kb-radius-sm);
 }
 
 .ant-btn-primary:hover,
@@ -127,17 +182,24 @@ a {
   background-color: var(--kb-primary);
   border-color: var(--kb-primary);
   color: #ffffff;
-  opacity: 0.5;
+  opacity: 0.55;
 }
 
-/* 次要按钮 hover 边框跟随主色 */
+/* 默认按钮 */
+.ant-btn-default {
+  border-radius: var(--kb-radius-sm);
+  border-color: var(--kb-border-strong);
+  color: var(--kb-text-secondary);
+}
+
 .ant-btn-default:hover,
 .ant-btn-default:focus {
-  border-color: var(--kb-primary);
-  color: var(--kb-primary);
+  border-color: var(--kb-border-hover);
+  color: var(--kb-text);
+  background-color: var(--kb-bg-hover);
 }
 
-/* 链接型按钮跟随主色 */
+/* 链接型按钮 */
 .ant-btn-link {
   color: var(--kb-primary);
 }
@@ -146,31 +208,50 @@ a {
   color: var(--kb-primary-hover);
 }
 
-/* 输入框聚焦边框跟随主色 */
+/* 文本型按钮 */
+.ant-btn-text {
+  border-radius: var(--kb-radius-sm);
+}
+
+.ant-btn-text:hover {
+  background-color: var(--kb-bg-hover);
+  color: var(--kb-text);
+}
+
+/* 输入框：聚焦仅边框变色，无 box-shadow 光晕 */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker,
+.ant-select .ant-select-selector,
+.ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  border-color: var(--kb-border);
+  border-radius: var(--kb-radius);
+  background-color: #ffffff;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-picker:hover,
+.ant-select:hover .ant-select-selector {
+  border-color: var(--kb-border-strong) !important;
+}
+
 .ant-input:focus,
 .ant-input:focus-within,
 .ant-input-affix-wrapper:focus,
 .ant-input-affix-wrapper-focused,
 .ant-input-affix-wrapper:focus-within,
-.ant-input:hover,
-.ant-input-affix-wrapper:hover,
-.ant-select:hover .ant-select-selector,
 .ant-select-focused .ant-select-selector,
-.ant-picker:focus,
 .ant-picker-focused {
   border-color: var(--kb-primary) !important;
+  box-shadow: none !important;
 }
 
-.ant-input:focus,
-.ant-input-affix-wrapper-focused,
-.ant-select-focused .ant-select-selector,
-.ant-picker-focused {
-  box-shadow: 0 0 0 2px rgba(15, 143, 163, 0.12) !important;
-}
-
-/* Tabs 选中态：主色文字 + 底部高亮线 */
+/* Tabs 选中态 */
 .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--kb-primary) !important;
+  color: var(--kb-primary-hover) !important;
+  font-weight: 600;
 }
 
 .ant-tabs-ink-bar {
@@ -181,19 +262,24 @@ a {
   color: var(--kb-primary);
 }
 
-/* Card hover 边框跟随主色 */
-.ant-card:hover {
-  border-color: var(--kb-primary);
+/* Card */
+.ant-card {
+  border-radius: var(--kb-radius);
+  border-color: var(--kb-border);
 }
 
-/* Tag 蓝色系列微调（保持 Antd 默认色，仅统一卡片色感） */
+.ant-card:hover {
+  border-color: var(--kb-primary-soft-hover);
+}
+
+/* Tag 蓝色系列 */
 .ant-tag-blue {
-  color: var(--kb-primary);
+  color: var(--kb-primary-hover);
   background-color: var(--kb-primary-soft);
   border-color: var(--kb-primary-soft-hover);
 }
 
-/* Radio / Checkbox 选中态跟随主色 */
+/* Radio / Checkbox 选中态 */
 .ant-radio-checked .ant-radio-inner,
 .ant-checkbox-checked .ant-checkbox-inner {
   border-color: var(--kb-primary) !important;
@@ -210,21 +296,39 @@ a {
   background-color: var(--kb-primary);
 }
 
-/* 全局滚动条轻量化 */
+/* Modal 圆角 */
+.ant-modal,
+.ant-modal-content {
+  border-radius: var(--kb-radius);
+}
+
+.ant-modal-header {
+  border-radius: var(--kb-radius) var(--kb-radius) 0 0;
+}
+
+/* =========================================================
+ * 全局滚动条（4px 细滚动条，Yuxi 风格）
+ * ========================================================= */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
+  background-color: var(--kb-border-strong);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: var(--kb-text-border-disabled);
 }
 
 ::-webkit-scrollbar-track {
-  background-color: transparent;
+  background-color: var(--kb-border-light);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--kb-border-strong) var(--kb-border-light);
 }
