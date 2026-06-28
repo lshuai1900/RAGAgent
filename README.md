@@ -100,6 +100,25 @@ curl -X POST http://localhost:8000/api/v1/documents/upload \
 curl http://localhost:8000/api/v1/documents/{document_id}
 ```
 
+### 知识库文件管理（重命名 / 删除 / 重新处理）
+
+```bash
+# 重命名文档（同一知识库内文件名唯一；重名返回 code=10301，文档不存在返回 404）
+curl -X PATCH http://localhost:8000/api/v1/knowledge-bases/{kb_id}/documents/{document_id} \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"新的文件名.md"}'
+
+# 删除文档（同时删除对应向量索引 + 分块元数据 + 文档记录，递减知识库文档计数）
+curl -X DELETE http://localhost:8000/api/v1/knowledge-bases/{kb_id}/documents/{document_id}
+
+# 重新处理文档（删除旧向量与旧分块，复用已存储分块内容重新 embedding + 索引）
+curl -X POST http://localhost:8000/api/v1/knowledge-bases/{kb_id}/documents/{document_id}/reprocess
+```
+
+- `PATCH` 重命名：文件名前后空格会被 trim，非空校验失败返回 422；同一知识库内重名返回 `code=10301`；文档不存在或不属于该知识库返回 `404`（`code=10304`）。
+- `DELETE` 删除：必须同时删除 Milvus 向量索引（按 `document_id` 过滤），否则 RAG 检索仍会命中已删除文件内容；向量库删除失败为 best-effort（仅记录日志，不阻断 DB 删除）。
+- `POST /reprocess` 重新处理：原始上传文件未持久化，因此复用 `t_document_chunk.content` 重新 embedding + 索引；若文档无分块内容（未完成分块阶段）返回 `code=10302` 并提示重新上传。
+
 ### 流式问答（SSE）
 
 ```bash

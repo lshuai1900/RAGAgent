@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DocumentOut(BaseModel):
@@ -53,6 +53,33 @@ class DocumentUploadResponse(BaseModel):
     duplicated: bool = Field(False, description="是否为重复文件（hash 命中已有文档）")
 
 
+class DocumentUpdate(BaseModel):
+    """更新文档请求（部分更新，目前仅支持重命名）。
+
+    filename 非空校验 + trim 由 Pydantic 校验器保证；
+    同一知识库内重名校验由 Service 层完成。
+    """
+
+    filename: str = Field(..., min_length=1, max_length=256, description="新文件名（同一知识库内唯一）")
+
+    @field_validator("filename")
+    @classmethod
+    def validate_filename(cls, v: str) -> str:
+        """文件名非空校验：去除首尾空白后不能为空。"""
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("文件名不能为空")
+        return stripped
+
+
+class DocumentDeleteResponse(BaseModel):
+    """文档删除响应。"""
+
+    id: str
+    kb_id: str
+    status: str
+
+
 class ChunkOut(BaseModel):
     """文档分块响应（可选查询）。"""
 
@@ -72,7 +99,9 @@ class ChunkOut(BaseModel):
 
 __all__ = [
     "ChunkOut",
+    "DocumentDeleteResponse",
     "DocumentOut",
     "DocumentPage",
+    "DocumentUpdate",
     "DocumentUploadResponse",
 ]

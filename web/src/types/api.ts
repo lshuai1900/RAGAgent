@@ -123,6 +123,19 @@ export interface DocumentUploadResponse {
 /** 文档分页响应 data */
 export interface DocumentPage extends PageResponse<DocumentOut> {}
 
+/** 更新文档请求体（目前仅支持重命名） */
+export interface DocumentUpdate {
+  /** 新文件名（同一知识库内唯一，非空，trim 后 1-256 字符） */
+  filename: string
+}
+
+/** 文档删除响应 data */
+export interface DocumentDeleteResponse {
+  id: string
+  kb_id: string
+  status: string
+}
+
 // ===== 聊天（与 docs/FRONTEND_API_CONTRACT.md 3.8 对齐）=====
 
 /** SSE 流式问答请求体 */

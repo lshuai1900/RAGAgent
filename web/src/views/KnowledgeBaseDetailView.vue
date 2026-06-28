@@ -5,7 +5,7 @@
  * - 沉浸式布局：route.meta.immersive = true，隐藏全局左侧菜单
  * - 顶部 top-bar：返回 / 知识库图标 / 名称 / 副标题 / 复制 ID / 编辑 / 刷新
  * - 横向 Tab：文件管理 / 检索测试 / 知识图谱 / 知识导图 / RAG 评估 / 评估基准
- *   - 文件管理：真实功能（上传 + 搜索 + 行列表 + 状态轮询）
+ *   - 文件管理：真实功能（上传 + 搜索 + 行列表 + 行内操作 + 状态轮询）
  *   - 检索测试：真实 SSE 流式问答
  *   - 其余 Tab：规划中，点击提示"该能力将在后续版本实现"
  * - Tab 切换同步 route.query.tab
@@ -13,17 +13,20 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { Spin, Alert, message } from 'ant-design-vue'
+import { Spin, Alert, Modal, message } from 'ant-design-vue'
 import { Network, Map, BarChart3, ClipboardList } from 'lucide-vue-next'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { useDocumentStore } from '@/stores/document'
 import { useChatStore } from '@/stores/chat'
+import { ApiError, NetworkError } from '@/api/client'
+import type { DocumentOut } from '@/types/api'
 import KnowledgeBaseDetailHeader from '@/components/KnowledgeBaseDetailHeader.vue'
 import KnowledgeBaseTabs from '@/components/KnowledgeBaseTabs.vue'
 import FileManagerPanel from '@/components/FileManagerPanel.vue'
 import SearchTestPanel from '@/components/SearchTestPanel.vue'
 import DocumentUploadModal from '@/components/DocumentUploadModal.vue'
 import KnowledgeBaseEditModal from '@/components/KnowledgeBaseEditModal.vue'
+import DocumentRenameModal from '@/components/DocumentRenameModal.vue'
 
 /** 详情页可用 Tab（仅文件管理 / 检索测试为真实功能，其余为规划态） */
 type TabKey = 'documents' | 'retrieve'
@@ -46,7 +49,14 @@ const kbStore = useKnowledgeBaseStore()
 const docStore = useDocumentStore()
 const chatStore = useChatStore()
 const { detail, detailState, detailError } = storeToRefs(kbStore)
-const { list: docList, listState: docListState, listError: docListError } = storeToRefs(docStore)
+const {
+  list: docList,
+  listState: docListState,
+  listError: docListError,
+  renaming,
+  deleting,
+  reprocessing,
+} = storeToRefs(docStore)
 
 const kbId = computed(() => String(route.params.kbId ?? ''))
 
@@ -62,6 +72,15 @@ function readTabFromQuery(): TabKey {
 const activeTab = ref<TabKey>(readTabFromQuery())
 const uploadModalOpen = ref<boolean>(false)
 const editModalOpen = ref<boolean>(false)
+
+/** 重命名弹窗状态 */
+const renameModalOpen = ref<boolean>(false)
+const renameTarget = ref<DocumentOut | null>(null)
+
+/** 任一文档操作进行中（用于禁用行菜单，避免重复提交） */
+const docActionLoading = computed(
+  () => renaming.value || deleting.value || reprocessing.value,
+)
 
 const isKbLoading = computed(() => detailState.value === 'loading')
 const isKbError = computed(() => detailState.value === 'error' && !isKbLoading.value)
@@ -127,6 +146,65 @@ function handleUpdated(): void {
 /** 删除成功：跳转回知识库列表页 */
 function handleDeleted(): void {
   router.push('/knowledge-bases')
+}
+
+// ===== 文件操作：重命名 / 删除 / 重新处理 =====
+
+/** 点击"重命名"：打开重命名弹窗 */
+function handleRename(doc: DocumentOut): void {
+  renameTarget.value = doc
+  renameModalOpen.value = true
+}
+
+/** 重命名成功：store 已更新列表，刷新 KB 详情同步 document_count */
+function handleRenamed(): void {
+  if (kbId.value) {
+    void kbStore.fetchDetail(kbId.value)
+  }
+}
+
+/** 后端错误码到中文文案映射（删除 / 重新处理共用） */
+function mapDocErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof NetworkError) return err.message
+  if (err instanceof ApiError) {
+    if (err.code === 10304) return '文件不存在或已被删除'
+    if (err.code === 10404) return '知识库不存在或已被删除'
+    const trace = err.traceId ? `，追踪编号：${err.traceId}` : ''
+    return `${err.message}${trace}`
+  }
+  return fallback
+}
+
+/** 点击"删除"：二次确认后调用 DELETE */
+function handleDelete(doc: DocumentOut): void {
+  Modal.confirm({
+    title: '删除文件',
+    content:
+      '删除文件会同时删除该文件对应的向量索引，删除后无法在检索中命中该文件内容。是否继续？',
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        await docStore.deleteDocument(kbId.value, doc.id)
+        message.success('文件已删除')
+        // 刷新 KB 详情，更新 document_count
+        void kbStore.fetchDetail(kbId.value)
+      } catch (err) {
+        message.error(mapDocErrorMessage(err, '删除失败，请稍后重试'))
+      }
+    },
+  })
+}
+
+/** 点击"重新处理"：调用 POST reprocess */
+async function handleReprocess(doc: DocumentOut): Promise<void> {
+  try {
+    await docStore.reprocessDocument(kbId.value, doc.id)
+    message.success('已提交重新处理')
+  } catch (err) {
+    message.error(mapDocErrorMessage(err, '提交重新处理失败，请稍后重试'))
+  }
 }
 
 /** activeTab 变化：同步 URL query，并在进出检索测试时重置聊天 store */
@@ -212,8 +290,12 @@ onBeforeUnmount(() => {
           :documents="docList"
           :loading="isDocLoading"
           :error="isDocError ? (docListError || '加载文档列表失败') : ''"
+          :action-loading="docActionLoading"
           @upload="openUpload"
           @refresh="refreshDocs"
+          @rename="handleRename"
+          @delete="handleDelete"
+          @reprocess="handleReprocess"
         />
 
         <!-- 检索测试（真实 SSE 流式问答） -->
@@ -249,6 +331,14 @@ onBeforeUnmount(() => {
       :knowledge-base="detail"
       @updated="handleUpdated"
       @deleted="handleDeleted"
+    />
+
+    <!-- 文件重命名弹窗 -->
+    <DocumentRenameModal
+      v-model:open="renameModalOpen"
+      :kb-id="kbId"
+      :document="renameTarget"
+      @renamed="handleRenamed"
     />
   </div>
 </template>

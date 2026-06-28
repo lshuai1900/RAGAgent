@@ -4,17 +4,16 @@
  *
  * 视觉规格（参考 Yuxi 文件管理信息条，不复制源码）：
  * - 信息条：flex wrap，两端对齐，gap:20px
- *   - 左侧操作：上传（主色按钮 + FileUp 14px）、新建文件夹（次级按钮 + FolderPlus 14px）
+ *   - 左侧操作：上传（主色按钮 + FileUp 14px）
  *   - 右侧统计卡片行：gap:8px，每卡 min-width:87px; min-height:36px; padding:5px 10px，
  *     圆角 8px，白底，边框 1px solid #eff2f2，主色图标 16px + 数字(14px/#1e1f1f) + 标签(11px/#979999)
- * - 列表区：复用 DocumentTable（搜索 + 行列表）
- * - 不接后端高级能力：新建文件夹仅提示"后续版本实现"
+ * - 列表区：复用 DocumentTable（搜索 + 行列表 + 行内操作菜单）
+ * - 透传 rename / delete / reprocess 事件给父组件（由详情页接线弹窗 / 确认 / store 调用）
  */
 import { computed } from 'vue'
-import { Alert, message } from 'ant-design-vue'
+import { Alert } from 'ant-design-vue'
 import {
   FileUp,
-  FolderPlus,
   RefreshCw,
   Clock,
   Loader,
@@ -30,12 +29,17 @@ interface Props {
   loading?: boolean
   /** 文档列表加载错误（中文） */
   error?: string
+  /** 操作进行中（重命名 / 删除 / 重新处理），透传给 FileListItem 禁用菜单 */
+  actionLoading?: boolean
 }
 const props = defineProps<Props>()
 
 interface Emits {
   (e: 'upload'): void
   (e: 'refresh'): void
+  (e: 'rename', document: DocumentOut): void
+  (e: 'delete', document: DocumentOut): void
+  (e: 'reprocess', document: DocumentOut): void
 }
 const emit = defineEmits<Emits>()
 
@@ -47,9 +51,14 @@ function handleRefresh(): void {
   emit('refresh')
 }
 
-/** 新建文件夹：本轮仅规划提示，不接后端 */
-function handleNewFolder(): void {
-  message.info('新建文件夹能力将在后续版本实现')
+function handleRename(doc: DocumentOut): void {
+  emit('rename', doc)
+}
+function handleDelete(doc: DocumentOut): void {
+  emit('delete', doc)
+}
+function handleReprocess(doc: DocumentOut): void {
+  emit('reprocess', doc)
 }
 
 /** 各状态文档数量统计 */
@@ -106,14 +115,6 @@ const statCards = computed<StatCard[]>(() => [
           <FileUp :size="14" />
           <span>上传</span>
         </button>
-        <button
-          type="button"
-          class="file-manager__btn file-manager__btn--secondary"
-          @click="handleNewFolder"
-        >
-          <FolderPlus :size="14" />
-          <span>新建文件夹</span>
-        </button>
       </div>
 
       <!-- 右侧统计卡片 + 刷新 -->
@@ -159,7 +160,14 @@ const statCards = computed<StatCard[]>(() => [
     />
 
     <!-- 文件列表 -->
-    <DocumentTable :documents="documents" :loading="loading" />
+    <DocumentTable
+      :documents="documents"
+      :loading="loading"
+      :action-loading="actionLoading"
+      @rename="handleRename"
+      @delete="handleDelete"
+      @reprocess="handleReprocess"
+    />
   </div>
 </template>
 

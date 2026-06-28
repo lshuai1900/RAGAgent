@@ -139,6 +139,42 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         result = await self._session.execute(stmt)
         return [row[0] for row in result.all()]
 
+    async def delete_by_document(self, document_id: str) -> int:
+        """删除某文档下的所有分块记录（物理删除）。
+
+        用于删除文件 / 重新处理场景：先删向量库索引，再删 PG 分块元数据。
+
+        Args:
+            document_id: 文档 ID
+
+        Returns:
+            删除的行数
+        """
+        from sqlalchemy import delete as sa_delete
+
+        stmt = sa_delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
+        result = await self._session.execute(stmt)
+        return int(result.rowcount or 0)
+
+    async def list_contents_by_document(self, document_id: str) -> list[dict[str, Any]]:
+        """列出某文档所有分块的内容与元信息（供重新处理复用）。
+
+        按创建顺序返回 content / chunk_index / chunk_metadata。
+
+        Args:
+            document_id: 文档 ID
+
+        Returns:
+            分块内容字典列表
+        """
+        stmt = (
+            select(DocumentChunk.content, DocumentChunk.chunk_index, DocumentChunk.chunk_metadata)
+            .where(DocumentChunk.document_id == document_id)
+            .order_by(DocumentChunk.chunk_index.asc())
+        )
+        result = await self._session.execute(stmt)
+        return [{"content": row[0], "chunk_index": row[1], "metadata": dict(row[2] or {})} for row in result.all()]
+
     async def get_metadata_for_index(self, document_id: str) -> list[dict[str, Any]]:
         """获取某文档所有分块的 metadata（供 Milvus 索引使用）。
 
