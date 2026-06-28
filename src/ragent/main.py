@@ -13,6 +13,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from ragent.api.deps import get_embedding_client, get_vector_store
 from ragent.api.v1.chat import router as chat_router
@@ -55,6 +56,18 @@ def create_app() -> FastAPI:
 
     # 中间件：trace_id 注入（必须先注册，确保所有请求都有 trace_id）
     app.add_middleware(TraceMiddleware)
+
+    # CORS：仅允许前端本地开发地址（P1.1 联调最小改动，不修改业务逻辑）
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
     # 异常处理器：统一返回 ApiResponse
     register_exception_handlers(app)
