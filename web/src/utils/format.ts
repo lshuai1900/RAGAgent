@@ -1,55 +1,13 @@
 /**
- * 格式化工具：状态文案映射、文件大小、时间
+ * 格式化工具：知识库/健康状态文案、文件大小、时间
  * 纯函数，不调 api、不访问 store
+ * 文档状态相关映射见 utils/status.ts
  */
 import dayjs from 'dayjs'
 import {
-  DocumentStatus,
-  type DocumentStatusValue,
   KnowledgeBaseStatus,
   type KnowledgeBaseStatusValue,
 } from '@/types/enums'
-
-/** 文档状态 → 中文文案 */
-export function documentStatusText(status: string): string {
-  switch (status as DocumentStatusValue) {
-    case DocumentStatus.PENDING:
-      return '待处理'
-    case DocumentStatus.PARSING:
-      return '解析中'
-    case DocumentStatus.CHUNKING:
-      return '分块中'
-    case DocumentStatus.EMBEDDING:
-      return '向量化中'
-    case DocumentStatus.INDEXING:
-      return '入库中'
-    case DocumentStatus.COMPLETED:
-      return '已完成'
-    case DocumentStatus.FAILED:
-      return '失败'
-    default:
-      return '未知状态'
-  }
-}
-
-/** 文档状态 → Antd Tag 颜色 */
-export function documentStatusColor(status: string): string {
-  switch (status as DocumentStatusValue) {
-    case DocumentStatus.PENDING:
-      return 'default'
-    case DocumentStatus.PARSING:
-    case DocumentStatus.CHUNKING:
-    case DocumentStatus.EMBEDDING:
-    case DocumentStatus.INDEXING:
-      return 'processing'
-    case DocumentStatus.COMPLETED:
-      return 'success'
-    case DocumentStatus.FAILED:
-      return 'error'
-    default:
-      return 'default'
-  }
-}
 
 /** 知识库状态 → 中文文案 */
 export function knowledgeBaseStatusText(status: string): string {

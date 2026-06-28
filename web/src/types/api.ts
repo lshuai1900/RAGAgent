@@ -76,3 +76,36 @@ export interface KnowledgeBaseOut {
 /** 知识库分页响应 data */
 export interface KnowledgeBasePage extends PageResponse<KnowledgeBaseOut> {}
 
+// ===== 文档（与 docs/FRONTEND_API_CONTRACT.md 3.5-3.7 对齐）=====
+
+/** 文档响应 */
+export interface DocumentOut {
+  id: string
+  kb_id: string
+  name: string
+  file_type: string
+  file_size: number
+  file_hash: string
+  status: string
+  chunk_count: number
+  total_tokens: number
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 文档上传响应 */
+export interface DocumentUploadResponse {
+  document_id: string
+  kb_id: string
+  name: string
+  file_type: string
+  file_size: number
+  file_hash: string
+  status: string
+  duplicated: boolean
+}
+
+/** 文档分页响应 data */
+export interface DocumentPage extends PageResponse<DocumentOut> {}
+

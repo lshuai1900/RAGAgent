@@ -118,8 +118,13 @@ export async function request<T = unknown>(
   const finalHeaders: Record<string, string> = { ...headers }
   let reqBody: BodyInit | undefined
   if (body !== undefined) {
-    finalHeaders['Content-Type'] = finalHeaders['Content-Type'] ?? 'application/json'
-    reqBody = JSON.stringify(body)
+    if (body instanceof FormData) {
+      // multipart 上传：直接透传 FormData，不设置 Content-Type（浏览器自动加 boundary）
+      reqBody = body
+    } else {
+      finalHeaders['Content-Type'] = finalHeaders['Content-Type'] ?? 'application/json'
+      reqBody = JSON.stringify(body)
+    }
   }
 
   let response: Response
