@@ -4,9 +4,7 @@
 - lifespan：启动时初始化日志，关闭时释放 engine 资源
 - 注册中间件：TraceMiddleware（trace_id 注入 + X-Trace-Id 响应头）
 - 注册异常处理器：RagentException + Exception 兜底
-- 挂载路由：/health 等
-
-MVP 仅 health 接口，业务路由由后续批次挂载。
+- 挂载路由：/health、/api/v1/knowledge-bases、/api/v1/documents
 """
 
 from __future__ import annotations
@@ -16,7 +14,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from ragent.api.deps import get_embedding_client, get_vector_store
+from ragent.api.v1.documents import router as documents_router
 from ragent.api.v1.health import router as health_router
+from ragent.api.v1.knowledge_bases import router as knowledge_bases_router
 from ragent.framework.core.config import get_settings
 from ragent.framework.core.logging import setup_logging
 from ragent.framework.db.session import dispose_engine
@@ -30,6 +31,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # 触发 settings 提前加载，配置错误时启动即失败
     get_settings()
     setup_logging(level="INFO")
+    # 预热单例（embedding_client / vector_store），失败不阻塞启动
+    try:
+        get_embedding_client()
+        get_vector_store()
+    except Exception:  # noqa: BLE001
+        pass
     yield
     # 关闭时释放数据库连接池
     await dispose_engine()
@@ -53,6 +60,8 @@ def create_app() -> FastAPI:
 
     # 路由挂载
     app.include_router(health_router)
+    app.include_router(knowledge_bases_router)
+    app.include_router(documents_router)
 
     return app
 

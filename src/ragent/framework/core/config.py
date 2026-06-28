@@ -56,10 +56,19 @@ class LlmConfig(BaseModel):
 
 
 class EmbeddingConfig(BaseModel):
-    """Embedding 配置。"""
+    """Embedding 配置。
+
+    api_key_ref 为环境变量名（密钥不入库明文），实际密钥从环境变量读取。
+    默认对齐 DashScope 兼容端点（qwen 系列）。
+    """
 
     default_provider: str = "qwen"
+    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_ref: str = "QWEN_API_KEY"
+    model: str = "text-embedding-v3"
     dim: int = 1024
+    batch_size: int = 25
+    timeout: int = 60
 
 
 class RagConfig(BaseModel):

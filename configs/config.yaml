@@ -23,7 +23,12 @@ llm:
 
 embedding:
   default_provider: qwen
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key_ref: QWEN_API_KEY
+  model: text-embedding-v3
   dim: 1024
+  batch_size: 25
+  timeout: 60
 
 rag:
   default_top_k: 10
