@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * 知识库详情页（P1.3 + P1.4-A）
+ * 知识库详情页（P1.3 + P1.4-A + P1.4-B）
  * - 顶部展示知识库基本信息（名称/描述/状态/向量维度/集合名称/文档数量/创建时间）
- * - 标签页：文件管理（真实功能）/ 检索测试（占位）/ 聊天问答（真实 SSE）/ 配置（占位）
+ * - 标签页：文件管理（真实功能）/ 检索测试（真实 SSE）/ 聊天问答（真实 SSE）/ 配置（占位）
  * - 文件管理：状态统计 + 上传 + 文档表格 + 状态轮询
+ * - 检索测试：复用 POST /api/v1/chat/sse，左右分栏展示回答与引用来源
  * - 聊天问答：POST /api/v1/chat/sse 流式输出（fetch + ReadableStream）
  * - 标签页切换同步 route.query.tab
  */
@@ -37,6 +38,7 @@ import DocumentStatusCards from '@/components/DocumentStatusCards.vue'
 import DocumentTable from '@/components/DocumentTable.vue'
 import DocumentUploadModal from '@/components/DocumentUploadModal.vue'
 import ChatSsePanel from '@/components/ChatSsePanel.vue'
+import SearchTestPanel from '@/components/SearchTestPanel.vue'
 
 type TabKey = 'documents' | 'retrieve' | 'chat' | 'config'
 const VALID_TABS: TabKey[] = ['documents', 'retrieve', 'chat', 'config']
@@ -72,6 +74,12 @@ const isDocError = computed(() => docListState.value === 'error' && !isDocLoadin
 /** 切换标签页时同步 URL query（replace 避免历史污染） */
 function handleTabChange(key: string | number): void {
   const tab = String(key) as TabKey
+  // 切换进入/离开聊天或检索标签页时重置聊天 store，避免跨标签页消息串扰
+  if (tab === 'chat' || tab === 'retrieve' || activeTab.value === 'chat' || activeTab.value === 'retrieve') {
+    if (tab !== activeTab.value) {
+      chatStore.reset()
+    }
+  }
   activeTab.value = tab
   router.replace({ query: { ...route.query, tab } })
 }
@@ -236,10 +244,10 @@ onBeforeUnmount(() => {
           </div>
         </TabPane>
 
-        <!-- 检索测试（占位） -->
+        <!-- 检索测试（P1.4-B：复用 SSE 流式问答，展示回答与引用来源） -->
         <TabPane key="retrieve" tab="检索测试">
-          <div class="kb-detail__placeholder">
-            <Empty description="检索测试将在后续实现" />
+          <div class="kb-detail__tab-content">
+            <SearchTestPanel :kb-id="kbId" :kb-name="detail?.name" />
           </div>
         </TabPane>
 

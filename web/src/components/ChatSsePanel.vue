@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * 知识库详情页"聊天问答"标签页主面板（P1.4-A）
+ * SSE 流式问答面板（P1.4-A / P1.4-B 通用）
  *
  * - 基于 POST /api/v1/chat/sse 流式问答
  * - fetch + ReadableStream（禁用 EventSource）
+ * - 通过 mode / layout props 适配"聊天问答"与"检索测试"两种场景
  * - 状态：sending（开始生成）→ receiving（生成中）→ done / error
  * - 展示 trace_id（追踪编号）与 retrieval_context（引用来源）
  * - Enter 发送，Shift + Enter 换行
@@ -18,6 +19,7 @@ import {
   Bot,
   Loader,
   RefreshCw,
+  Search,
   Send,
   Square,
   User,
@@ -31,13 +33,52 @@ interface Props {
   kbId: string
   /** 当前知识库名称（用于顶部说明展示） */
   kbName?: string
+  /** 模式：chat（聊天问答）或 search（检索测试） */
+  mode?: 'chat' | 'search'
+  /** 自定义标题，不传则按 mode 取默认值 */
+  title?: string
+  /** 自定义输入框 placeholder */
+  placeholder?: string
+  /** 自定义提交按钮文案 */
+  submitText?: string
+  /** 自定义底部提示文案 */
+  hint?: string
+  /** 自定义回答区标题 */
+  answerTitle?: string
+  /** 布局：vertical（纵向，引用在下方）或 horizontal（横向，引用在右侧） */
+  layout?: 'vertical' | 'horizontal'
 }
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  mode: 'chat',
+  layout: 'vertical',
+})
 
 const chatStore = useChatStore()
 const { messages, state, error, isStreaming } = storeToRefs(chatStore)
 
 const question = ref<string>('')
+
+// ===== mode 相关默认值 =====
+const modeConfig = computed(() => {
+  if (props.mode === 'search') {
+    return {
+      title: props.title ?? '检索测试',
+      placeholder: props.placeholder ?? '输入查询内容...',
+      submitText: props.submitText ?? '开始检索',
+      hint: props.hint ?? 'Enter 检索知识库内容',
+      answerTitle: props.answerTitle ?? '检索结果',
+      icon: Search,
+    }
+  }
+  return {
+    title: props.title ?? '聊天问答',
+    placeholder: props.placeholder ?? '请输入你的问题',
+    submitText: props.submitText ?? '发送',
+    hint: props.hint ?? 'Enter 发送，Shift + Enter 换行',
+    answerTitle: props.answerTitle ?? '回答内容',
+    icon: Bot,
+  }
+})
 
 const canSend = computed(
   () => !isStreaming.value && question.value.trim().length > 0,
@@ -55,6 +96,21 @@ const lastAssistant = computed<ChatMessage | null>(() => {
 const isFinished = computed(
   () => state.value === 'done' || state.value === 'error',
 )
+
+/** 是否展示引用来源面板 */
+const showRetrievalPanel = computed(() => {
+  if (props.layout === 'horizontal') {
+    // 横向布局：始终展示引用来源（空时显示 Empty）
+    return true
+  }
+  // 纵向布局：仅在 done / error 后展示
+  return !!(lastAssistant.value &&
+    (lastAssistant.value.status === 'done' || lastAssistant.value.status === 'error') &&
+    isFinished.value)
+})
+
+/** 引用来源数据 */
+const retrievalItems = computed(() => lastAssistant.value?.retrieval_context ?? null)
 
 /** 顶部阶段文案 */
 const phaseText = computed<string>(() => {
@@ -147,145 +203,298 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="chat-sse-panel">
-    <!-- 顶部说明 -->
-    <div class="chat-sse-panel__head">
-      <div class="chat-sse-panel__title">
-        <Bot :size="16" class="chat-sse-panel__icon" />
-        <span>聊天问答</span>
-      </div>
-      <p class="chat-sse-panel__desc">
-        基于当前知识库进行流式问答<span v-if="kbName">：{{ kbName }}</span>
-      </p>
-    </div>
-
-    <!-- 输入区 -->
-    <Card :bordered="true" size="small" class="chat-sse-panel__input-card">
-      <div class="chat-sse-panel__input-row">
-        <Input.TextArea
-          v-model:value="question"
-          :auto-size="{ minRows: 2, maxRows: 6 }"
-          placeholder="请输入你的问题"
-          :disabled="isStreaming"
-          class="chat-sse-panel__input"
-          @keydown="onKeydown"
-        />
-        <div class="chat-sse-panel__btns">
-          <Button
-            v-if="!isStreaming"
-            type="primary"
-            :disabled="!canSend"
-            @click="handleSend"
-          >
-            <template #icon><Send :size="14" /></template>
-            发送
-          </Button>
-          <Button v-else danger @click="handleStop">
-            <template #icon><Square :size="14" /></template>
-            停止
-          </Button>
-          <Button :disabled="isStreaming" @click="handleClear">
-            <template #icon><RefreshCw :size="14" /></template>
-            清空对话
-          </Button>
-        </div>
-      </div>
-      <p class="chat-sse-panel__hint">Enter 发送，Shift + Enter 换行</p>
-    </Card>
-
-    <!-- 错误提示（来自 store 顶层错误，例如网络中断、未输入问题） -->
-    <Alert
-      v-if="error && state === 'error'"
-      type="error"
-      show-icon
-      :message="error"
-    />
-
-    <!-- 回答区 -->
-    <Card :bordered="true" size="small" class="chat-sse-panel__answer-card">
-      <template #title>
-        <div class="chat-sse-panel__answer-head">
-          <span>回答内容</span>
-          <Tag v-if="phaseText" :color="phaseColor">
-            <template v-if="state === 'sending' || state === 'receiving'">
-              <Loader :size="11" class="chat-sse-panel__spin" />
-            </template>
-            {{ phaseText }}
-          </Tag>
-        </div>
-      </template>
-
-      <div v-if="messages.length === 0" class="chat-sse-panel__empty">
-        <Empty
-          :image="Empty.PRESENTED_IMAGE_SIMPLE"
-          description="暂无对话记录，输入问题开始提问"
-        />
-      </div>
-
-      <div v-else class="chat-sse-panel__messages">
-        <div
-          v-for="msg in messages"
-          :key="msg.id"
-          class="chat-msg"
-          :class="`chat-msg--${msg.role}`"
-        >
-          <div class="chat-msg__avatar">
-            <component :is="msg.role === 'user' ? User : Bot" :size="14" />
+  <div class="chat-sse-panel" :class="`chat-sse-panel--${layout}`">
+    <!-- ===== 横向布局：左右分栏 ===== -->
+    <template v-if="layout === 'horizontal'">
+      <!-- 左侧：输入 + 回答 -->
+      <div class="chat-sse-panel__main">
+        <!-- 顶部说明 -->
+        <div class="chat-sse-panel__head">
+          <div class="chat-sse-panel__title">
+            <component :is="modeConfig.icon" :size="16" class="chat-sse-panel__icon" />
+            <span>{{ modeConfig.title }}</span>
           </div>
-          <div class="chat-msg__body">
-            <div class="chat-msg__meta">
-              <span class="chat-msg__role">
-                {{ msg.role === 'user' ? '用户' : '助手' }}
-              </span>
-              <Tag
-                v-if="statusTagFor(msg)"
-                :color="statusTagFor(msg)!.color"
-                class="chat-msg__status"
+          <p class="chat-sse-panel__desc">
+            基于当前知识库进行流式问答<span v-if="kbName">：{{ kbName }}</span>
+          </p>
+        </div>
+
+        <!-- 输入区 -->
+        <Card :bordered="true" size="small" class="chat-sse-panel__input-card">
+          <div class="chat-sse-panel__input-row">
+            <Input.TextArea
+              v-model:value="question"
+              :auto-size="{ minRows: 2, maxRows: 6 }"
+              :placeholder="modeConfig.placeholder"
+              :disabled="isStreaming"
+              class="chat-sse-panel__input"
+              @keydown="onKeydown"
+            />
+            <div class="chat-sse-panel__btns">
+              <Button
+                v-if="!isStreaming"
+                type="primary"
+                :disabled="!canSend"
+                @click="handleSend"
               >
-                <template v-if="msg.status === 'sending' || msg.status === 'receiving'">
+                <template #icon>
+                  <Search v-if="mode === 'search'" :size="14" />
+                  <Send v-else :size="14" />
+                </template>
+                {{ modeConfig.submitText }}
+              </Button>
+              <Button v-else danger @click="handleStop">
+                <template #icon><Square :size="14" /></template>
+                停止
+              </Button>
+              <Button :disabled="isStreaming" @click="handleClear">
+                <template #icon><RefreshCw :size="14" /></template>
+                清空
+              </Button>
+            </div>
+          </div>
+          <p class="chat-sse-panel__hint">{{ modeConfig.hint }}</p>
+        </Card>
+
+        <!-- 错误提示 -->
+        <Alert
+          v-if="error && state === 'error'"
+          type="error"
+          show-icon
+          :message="error"
+        />
+
+        <!-- 回答区 -->
+        <Card :bordered="true" size="small" class="chat-sse-panel__answer-card">
+          <template #title>
+            <div class="chat-sse-panel__answer-head">
+              <span>{{ modeConfig.answerTitle }}</span>
+              <Tag v-if="phaseText" :color="phaseColor">
+                <template v-if="state === 'sending' || state === 'receiving'">
                   <Loader :size="11" class="chat-sse-panel__spin" />
                 </template>
-                {{ statusTagFor(msg)!.text }}
+                {{ phaseText }}
               </Tag>
             </div>
-            <div class="chat-msg__content">
-              <template v-if="msg.role === 'assistant' && msg.status === 'sending' && !msg.content">
-                <span class="chat-msg__thinking">正在生成回答...</span>
-              </template>
-              <template v-else>
-                <pre class="chat-msg__pre">{{ msg.content }}</pre>
-              </template>
-            </div>
+          </template>
+
+          <div v-if="messages.length === 0" class="chat-sse-panel__empty">
+            <Empty
+              :image="Empty.PRESENTED_IMAGE_SIMPLE"
+              :description="mode === 'search' ? '输入查询内容后开始检索' : '暂无对话记录，输入问题开始提问'"
+            />
+          </div>
+
+          <div v-else class="chat-sse-panel__messages">
             <div
-              v-if="msg.role === 'assistant' && msg.status === 'error' && msg.error_message"
-              class="chat-msg__error"
+              v-for="msg in messages"
+              :key="msg.id"
+              class="chat-msg"
+              :class="`chat-msg--${msg.role}`"
             >
-              <AlertCircle :size="12" />
-              <span>{{ msg.error_message }}</span>
+              <div class="chat-msg__avatar">
+                <component :is="msg.role === 'user' ? User : Bot" :size="14" />
+              </div>
+              <div class="chat-msg__body">
+                <div class="chat-msg__meta">
+                  <span class="chat-msg__role">
+                    {{ msg.role === 'user' ? '用户' : '助手' }}
+                  </span>
+                  <Tag
+                    v-if="statusTagFor(msg)"
+                    :color="statusTagFor(msg)!.color"
+                    class="chat-msg__status"
+                  >
+                    <template v-if="msg.status === 'sending' || msg.status === 'receiving'">
+                      <Loader :size="11" class="chat-sse-panel__spin" />
+                    </template>
+                    {{ statusTagFor(msg)!.text }}
+                  </Tag>
+                </div>
+                <div class="chat-msg__content">
+                  <template v-if="msg.role === 'assistant' && msg.status === 'sending' && !msg.content">
+                    <span class="chat-msg__thinking">正在生成回答...</span>
+                  </template>
+                  <template v-else>
+                    <pre class="chat-msg__pre">{{ msg.content }}</pre>
+                  </template>
+                </div>
+                <div
+                  v-if="msg.role === 'assistant' && msg.status === 'error' && msg.error_message"
+                  class="chat-msg__error"
+                >
+                  <AlertCircle :size="12" />
+                  <span>{{ msg.error_message }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <!-- 追踪编号 -->
+        <Card
+          v-if="lastAssistant && lastAssistant.trace_id"
+          :bordered="true"
+          size="small"
+          class="chat-sse-panel__trace-card"
+        >
+          <div class="chat-sse-panel__trace">
+            <span class="chat-sse-panel__trace-label">追踪编号：</span>
+            <span class="chat-sse-panel__trace-value">{{ lastAssistant.trace_id }}</span>
+          </div>
+        </Card>
+      </div>
+
+      <!-- 右侧：引用来源 -->
+      <div class="chat-sse-panel__side">
+        <RetrievalContextPanel :items="retrievalItems" />
+      </div>
+    </template>
+
+    <!-- ===== 纵向布局：上下堆叠（P1.4-A 原有布局） ===== -->
+    <template v-else>
+      <!-- 顶部说明 -->
+      <div class="chat-sse-panel__head">
+        <div class="chat-sse-panel__title">
+          <component :is="modeConfig.icon" :size="16" class="chat-sse-panel__icon" />
+          <span>{{ modeConfig.title }}</span>
+        </div>
+        <p class="chat-sse-panel__desc">
+          基于当前知识库进行流式问答<span v-if="kbName">：{{ kbName }}</span>
+        </p>
+      </div>
+
+      <!-- 输入区 -->
+      <Card :bordered="true" size="small" class="chat-sse-panel__input-card">
+        <div class="chat-sse-panel__input-row">
+          <Input.TextArea
+            v-model:value="question"
+            :auto-size="{ minRows: 2, maxRows: 6 }"
+            :placeholder="modeConfig.placeholder"
+            :disabled="isStreaming"
+            class="chat-sse-panel__input"
+            @keydown="onKeydown"
+          />
+          <div class="chat-sse-panel__btns">
+            <Button
+              v-if="!isStreaming"
+              type="primary"
+              :disabled="!canSend"
+              @click="handleSend"
+            >
+              <template #icon>
+                <Search v-if="mode === 'search'" :size="14" />
+                <Send v-else :size="14" />
+              </template>
+              {{ modeConfig.submitText }}
+            </Button>
+            <Button v-else danger @click="handleStop">
+              <template #icon><Square :size="14" /></template>
+              停止
+            </Button>
+            <Button :disabled="isStreaming" @click="handleClear">
+              <template #icon><RefreshCw :size="14" /></template>
+              清空对话
+            </Button>
+          </div>
+        </div>
+        <p class="chat-sse-panel__hint">{{ modeConfig.hint }}</p>
+      </Card>
+
+      <!-- 错误提示 -->
+      <Alert
+        v-if="error && state === 'error'"
+        type="error"
+        show-icon
+        :message="error"
+      />
+
+      <!-- 回答区 -->
+      <Card :bordered="true" size="small" class="chat-sse-panel__answer-card">
+        <template #title>
+          <div class="chat-sse-panel__answer-head">
+            <span>{{ modeConfig.answerTitle }}</span>
+            <Tag v-if="phaseText" :color="phaseColor">
+              <template v-if="state === 'sending' || state === 'receiving'">
+                <Loader :size="11" class="chat-sse-panel__spin" />
+              </template>
+              {{ phaseText }}
+            </Tag>
+          </div>
+        </template>
+
+        <div v-if="messages.length === 0" class="chat-sse-panel__empty">
+          <Empty
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+            description="暂无对话记录，输入问题开始提问"
+          />
+        </div>
+
+        <div v-else class="chat-sse-panel__messages">
+          <div
+            v-for="msg in messages"
+            :key="msg.id"
+            class="chat-msg"
+            :class="`chat-msg--${msg.role}`"
+          >
+            <div class="chat-msg__avatar">
+              <component :is="msg.role === 'user' ? User : Bot" :size="14" />
+            </div>
+            <div class="chat-msg__body">
+              <div class="chat-msg__meta">
+                <span class="chat-msg__role">
+                  {{ msg.role === 'user' ? '用户' : '助手' }}
+                </span>
+                <Tag
+                  v-if="statusTagFor(msg)"
+                  :color="statusTagFor(msg)!.color"
+                  class="chat-msg__status"
+                >
+                  <template v-if="msg.status === 'sending' || msg.status === 'receiving'">
+                    <Loader :size="11" class="chat-sse-panel__spin" />
+                  </template>
+                  {{ statusTagFor(msg)!.text }}
+                </Tag>
+              </div>
+              <div class="chat-msg__content">
+                <template v-if="msg.role === 'assistant' && msg.status === 'sending' && !msg.content">
+                  <span class="chat-msg__thinking">正在生成回答...</span>
+                </template>
+                <template v-else>
+                  <pre class="chat-msg__pre">{{ msg.content }}</pre>
+                </template>
+              </div>
+              <div
+                v-if="msg.role === 'assistant' && msg.status === 'error' && msg.error_message"
+                class="chat-msg__error"
+              >
+                <AlertCircle :size="12" />
+                <span>{{ msg.error_message }}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
 
-    <!-- 追踪编号 -->
-    <Card
-      v-if="lastAssistant && lastAssistant.trace_id"
-      :bordered="true"
-      size="small"
-      class="chat-sse-panel__trace-card"
-    >
-      <div class="chat-sse-panel__trace">
-        <span class="chat-sse-panel__trace-label">追踪编号：</span>
-        <span class="chat-sse-panel__trace-value">{{ lastAssistant.trace_id }}</span>
-      </div>
-    </Card>
+      <!-- 追踪编号 -->
+      <Card
+        v-if="lastAssistant && lastAssistant.trace_id"
+        :bordered="true"
+        size="small"
+        class="chat-sse-panel__trace-card"
+      >
+        <div class="chat-sse-panel__trace">
+          <span class="chat-sse-panel__trace-label">追踪编号：</span>
+          <span class="chat-sse-panel__trace-value">{{ lastAssistant.trace_id }}</span>
+        </div>
+      </Card>
 
-    <!-- 引用来源（done / error 后展示；后端不下发时显示"暂无引用来源"） -->
-    <RetrievalContextPanel
-      v-if="lastAssistant && (lastAssistant.status === 'done' || lastAssistant.status === 'error') && isFinished"
-      :items="lastAssistant.retrieval_context"
-    />
+      <!-- 引用来源（done / error 后展示；后端不下发时显示"暂无引用来源"） -->
+      <RetrievalContextPanel
+        v-if="showRetrievalPanel"
+        :items="retrievalItems"
+      />
+    </template>
   </div>
 </template>
 
@@ -294,6 +503,25 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 横向布局：左右分栏 */
+.chat-sse-panel--horizontal {
+  flex-direction: row;
+  gap: 16px;
+}
+
+.chat-sse-panel--horizontal .chat-sse-panel__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-sse-panel--horizontal .chat-sse-panel__side {
+  width: 360px;
+  flex-shrink: 0;
 }
 
 .chat-sse-panel__head {

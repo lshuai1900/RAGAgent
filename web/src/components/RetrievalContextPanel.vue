@@ -2,14 +2,16 @@
 /**
  * 引用来源展示面板
  *
- * - 后端 SSE done 事件当前不下发 retrieval_context（仅 trace_id + finish_reason）
- * - 本组件按 chunk_id / document_id / score / content / retrieval_channel 字段渲染
- * - 当后端后续在 done 扩展引用来源时，无需改组件即可生效
- * - 无引用时展示"暂无引用来源"
+ * - 支持展示多条引用来源，每条以卡片形式渲染
+ * - 字段中文展示：分块编号 / 文档编号 / 相似度分数 / 检索通道 / 内容摘要
+ * - 内容摘要过长时折叠展示，可展开/收起
+ * - score 为数字时保留 3 位小数
+ * - 无引用时展示 Empty 状态：暂无引用来源
+ * - 不伪造引用来源，后端不下发时显示空状态
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Card, Empty, Tag } from 'ant-design-vue'
-import { FileText } from 'lucide-vue-next'
+import { FileText, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import type { RetrievalContextItem } from '@/types/api'
 
 interface Props {
@@ -21,13 +23,46 @@ const props = defineProps<Props>()
 const list = computed<RetrievalContextItem[]>(() => props.items ?? [])
 const hasItems = computed(() => list.value.length > 0)
 
-/** 相似度分数格式化为 2 位小数 */
+/** 内容摘要折叠阈值（字符数） */
+const CONTENT_THRESHOLD = 200
+
+/** 记录每条引用的展开状态（按索引） */
+const expandedSet = ref<Set<number>>(new Set())
+
+function isExpanded(idx: number): boolean {
+  return expandedSet.value.has(idx)
+}
+
+function toggleExpand(idx: number): void {
+  const next = new Set(expandedSet.value)
+  if (next.has(idx)) {
+    next.delete(idx)
+  } else {
+    next.add(idx)
+  }
+  expandedSet.value = next
+}
+
+/** 判断内容摘要是否超过折叠阈值 */
+function isLongContent(content: unknown): boolean {
+  if (typeof content !== 'string') return false
+  return content.length > CONTENT_THRESHOLD
+}
+
+/** 获取截断后的内容摘要 */
+function truncatedContent(content: unknown): string {
+  const text = fmtText(content)
+  if (text.length <= CONTENT_THRESHOLD) return text
+  return text.slice(0, CONTENT_THRESHOLD) + '...'
+}
+
+/** 相似度分数格式化为 3 位小数 */
 function fmtScore(score: unknown): string {
   if (typeof score === 'number' && Number.isFinite(score)) {
-    return score.toFixed(2)
+    return score.toFixed(3)
   }
   const n = Number(score)
-  return Number.isFinite(n) ? n.toFixed(2) : '-'
+  return Number.isFinite(n) ? n.toFixed(3) : '-'
 }
 
 /** 通用文本格式化 */
@@ -76,7 +111,20 @@ function fmtText(v: unknown): string {
         </div>
         <div class="rcp__content-row">
           <span class="rcp__label">内容摘要：</span>
-          <span class="rcp__content">{{ fmtText(item.content) }}</span>
+          <div class="rcp__content-wrap">
+            <span v-if="isLongContent(item.content) && !isExpanded(idx)" class="rcp__content">
+              {{ truncatedContent(item.content) }}
+            </span>
+            <span v-else class="rcp__content">{{ fmtText(item.content) }}</span>
+            <button
+              v-if="isLongContent(item.content)"
+              class="rcp__toggle"
+              @click="toggleExpand(idx)"
+            >
+              <component :is="isExpanded(idx) ? ChevronUp : ChevronDown" :size="13" />
+              {{ isExpanded(idx) ? '收起' : '展开' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -153,10 +201,33 @@ function fmtText(v: unknown): string {
   line-height: 1.6;
 }
 
+.rcp__content-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .rcp__content {
   color: var(--app-text);
   white-space: pre-wrap;
   word-break: break-word;
-  flex: 1;
+}
+
+.rcp__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #1677ff;
+  align-self: flex-start;
+}
+
+.rcp__toggle:hover {
+  color: #4096ff;
 }
 </style>
