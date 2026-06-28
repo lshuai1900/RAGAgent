@@ -78,7 +78,7 @@ class EmbeddingConfig(BaseModel):
     api_key_ref: str = "QWEN_API_KEY"
     model: str = "text-embedding-v3"
     dim: int = 1024
-    batch_size: int = 16
+    batch_size: int = 10
     timeout: int = 60
     send_dimensions: bool = False
 
@@ -138,7 +138,7 @@ class Settings(BaseSettings):
         embedding_overrides: dict[str, Any] = {}
         if value := os.environ.get("EMBEDDING_BASE_URL"):
             embedding_overrides["base_url"] = value
-        if os.environ.get("EMBEDDING_API_KEY"):
+        if self._is_real_env_secret(os.environ.get("EMBEDDING_API_KEY")):
             embedding_overrides["api_key_ref"] = "EMBEDDING_API_KEY"
         if value := os.environ.get("EMBEDDING_MODEL"):
             embedding_overrides["model"] = value
@@ -154,6 +154,22 @@ class Settings(BaseSettings):
         if embedding_overrides:
             self.embedding = self.embedding.model_copy(update=embedding_overrides)
         return self
+
+    @staticmethod
+    def _is_real_env_secret(value: str | None) -> bool:
+        if not value:
+            return False
+        normalized = value.strip().lower()
+        return normalized not in {
+            "",
+            "your-api-key",
+            "your-embedding-api-key",
+            "your-qwen-api-key",
+            "your-openai-api-key",
+            "sk-your-api-key",
+            "sk-xxx",
+            "sk-xxxxxxxx",
+        }
 
     @classmethod
     def settings_customise_sources(

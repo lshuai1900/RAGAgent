@@ -412,14 +412,14 @@ async def test_payload_sends_dimensions_only_when_enabled() -> None:
 
 
 @pytest.mark.asyncio
-async def test_embed_splits_at_sixteen_texts_by_default() -> None:
-    """默认 batch_size=16：17 条 input 触发 2 次请求（16 + 1），结果按原顺序合并。"""
-    texts = [f"t{i}" for i in range(17)]
-    # 第 1 批返回 16 条向量，第 2 批返回 1 条向量
+async def test_embed_splits_at_ten_texts_by_default() -> None:
+    """默认 batch_size=10：11 条 input 触发 2 次请求（10 + 1），结果按原顺序合并。"""
+    texts = [f"t{i}" for i in range(11)]
+    # 第 1 批返回 10 条向量，第 2 批返回 1 条向量
     responses = [
         _make_mock_response(
             200,
-            json_body=_make_embedding_response([[float(i), 0.0] for i in range(16)]),
+            json_body=_make_embedding_response([[float(i), 0.0] for i in range(10)]),
         ),
         _make_mock_response(
             200,
@@ -436,21 +436,66 @@ async def test_embed_splits_at_sixteen_texts_by_default() -> None:
         dim=2,
         api_key="dummy",
         http_client=mock_client,
-        # 不传 batch_size，使用默认值 16
+        # 不传 batch_size，使用默认值 10
     )
 
     result = await client.embed(texts)
 
-    assert len(result) == 17
+    assert len(result) == 11
     # 2 次请求
     assert len(captured) == 2
-    # 第 1 批 16 条，第 2 批 1 条
-    assert len(captured[0]["input"]) == 16
+    # 第 1 批 10 条，第 2 批 1 条
+    assert len(captured[0]["input"]) == 10
     assert len(captured[1]["input"]) == 1
-    # 顺序合并：前 16 条来自第 1 批，最后 1 条来自第 2 批
+    # 顺序合并：前 10 条来自第 1 批，最后 1 条来自第 2 批
     assert result[0] == [0.0, 0.0]
-    assert result[15] == [15.0, 0.0]
-    assert result[16] == [100.0, 0.0]
+    assert result[9] == [9.0, 0.0]
+    assert result[10] == [100.0, 0.0]
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_embed_retries_with_provider_batch_limit_when_400_reports_max_batch_size() -> None:
+    """兼容服务返回单批上限时，自动降批重试当前批次。"""
+    texts = [f"t{i}" for i in range(12)]
+    error_body = {
+        "message": "<400> InternalError.Algo.InvalidParameter: Value error, batch size is invalid, "
+        "it should not be larger than 10.: input.contents"
+    }
+    responses = [
+        _make_mock_response(400, json_body=error_body),
+        _make_mock_response(
+            200,
+            json_body=_make_embedding_response([[float(i), 0.0] for i in range(10)]),
+        ),
+        _make_mock_response(
+            200,
+            json_body=_make_embedding_response([[100.0, 0.0], [101.0, 0.0]]),
+        ),
+    ]
+    captured: list[dict[str, Any]] = []
+    mock_client = _make_capturing_client(responses, captured)
+
+    client = OpenAICompatibleEmbeddingClient(
+        base_url="https://example.com/v1",
+        api_key_ref="TEST_API_KEY",
+        model="m",
+        dim=2,
+        batch_size=16,
+        api_key="dummy",
+        http_client=mock_client,
+    )
+
+    result = await client.embed(texts)
+
+    assert len(captured) == 3
+    assert len(captured[0]["input"]) == 12
+    assert len(captured[1]["input"]) == 10
+    assert len(captured[2]["input"]) == 2
+    assert result[0] == [0.0, 0.0]
+    assert result[9] == [9.0, 0.0]
+    assert result[10] == [100.0, 0.0]
+    assert result[11] == [101.0, 0.0]
     await client.close()
 
 

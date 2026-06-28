@@ -77,6 +77,17 @@ def test_plain_embedding_env_vars_override_yaml() -> None:
             os.environ.pop(key, None)
 
 
+def test_placeholder_embedding_api_key_does_not_override_qwen_api_key_ref() -> None:
+    """复制示例 .env 时，占位 embedding key 不应覆盖可用的 QWEN_API_KEY 引用。"""
+    os.environ["EMBEDDING_API_KEY"] = "your-embedding-api-key"
+    try:
+        reload_settings()
+        settings = get_settings()
+        assert settings.embedding.api_key_ref == "QWEN_API_KEY"
+    finally:
+        os.environ.pop("EMBEDDING_API_KEY", None)
+
+
 def test_nested_config_structure() -> None:
     """配置嵌套结构完整。"""
     settings: Settings = get_settings()

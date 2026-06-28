@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 import httpx
@@ -25,7 +26,7 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
         model: str,
         dim: int,
         *,
-        batch_size: int = 16,
+        batch_size: int = 10,
         timeout: int = 60,
         send_dimensions: bool = False,
         api_key: str | None = None,
@@ -54,8 +55,10 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
         headers = self._build_headers()
 
         results: list[list[float]] = []
-        for batch_start in range(0, len(texts), self._batch_size):
-            batch = texts[batch_start : batch_start + self._batch_size]
+        batch_start = 0
+        effective_batch_size = self._batch_size
+        while batch_start < len(texts):
+            batch = texts[batch_start : batch_start + effective_batch_size]
             payload: dict[str, Any] = {
                 "model": self._model,
                 "input": batch,
@@ -81,6 +84,27 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
             except httpx.HTTPStatusError as exc:
                 body_text = exc.response.text
                 detail = self._extract_error_detail(body_text)
+                max_batch_size = self._extract_max_batch_size(detail)
+                if (
+                    exc.response.status_code == 400
+                    and max_batch_size is not None
+                    and 0 < max_batch_size < len(batch)
+                ):
+                    self._log_request_context(
+                        "embedding_batch_size_retry",
+                        level="warning",
+                        input_count=len(texts),
+                        batch_size=len(batch),
+                        batch_start=batch_start,
+                        min_text_length=min_len,
+                        max_text_length=max_len,
+                        status_code=exc.response.status_code,
+                        error_body=body_text[:2000],
+                        provider_max_batch_size=max_batch_size,
+                        error_message=detail,
+                    )
+                    effective_batch_size = max_batch_size
+                    continue
                 self._log_request_context(
                     "embedding_http_error",
                     level="error",
@@ -131,6 +155,7 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
                     code=30013,
                 )
             results.extend(batch_vectors)
+            batch_start += len(batch)
 
         _logger.info(
             "embedding_done",
@@ -196,6 +221,8 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
         }
         if level == "error":
             _logger.error(event, **payload)
+        elif level == "warning":
+            _logger.warning(event, **payload)
         else:
             _logger.debug(event, **payload)
 
@@ -252,6 +279,21 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
         if detail:
             return detail[:1000]
         return body_text[:1000]
+
+    @staticmethod
+    def _extract_max_batch_size(detail: str) -> int | None:
+        patterns = (
+            r"(?:not be larger than|no larger than|larger than|at most|should not exceed)\s*(\d+)",
+            r"(?:max(?:imum)?(?: batch size)?(?: is|:)?|batch size limit(?: is|:)?)\s*(\d+)",
+        )
+        lowered = detail.lower()
+        if "batch" not in lowered:
+            return None
+        for pattern in patterns:
+            match = re.search(pattern, lowered)
+            if match:
+                return int(match.group(1))
+        return None
 
     @classmethod
     def _find_first_string(cls, value: Any, keys: tuple[str, ...]) -> str | None:
