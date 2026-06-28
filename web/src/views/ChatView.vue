@@ -1,9 +1,8 @@
 <script setup lang="ts">
 /**
- * 全局聊天问答页（P1.8 / Yuxi 风格高保真）
+ * 全局聊天问答页（Yuxi 风格 1:1 复刻）
  *
- * - 路由：/chat
- * - 顶部标题区：标题 + 副标题 + 右侧知识库选择器
+ * - PageHeader：sticky + blur，标题"聊天问答" + 副标题 + 右侧知识库选择器
  * - 选中知识库后复用 ChatSsePanel（mode='chat', layout='horizontal'）
  * - 未选择知识库时提示"请选择知识库后再提问"
  * - 切换知识库时重置聊天 store
@@ -15,6 +14,7 @@ import { Select, Spin, Alert } from 'ant-design-vue'
 import { MessageSquare } from 'lucide-vue-next'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { useChatStore } from '@/stores/chat'
+import PageHeader from '@/components/PageHeader.vue'
 import ChatSsePanel from '@/components/ChatSsePanel.vue'
 
 const kbStore = useKnowledgeBaseStore()
@@ -86,121 +86,81 @@ watch(
 
 <template>
   <div class="chat-view">
-    <!-- 顶部标题区：标题 + 副标题 + 右侧知识库选择器 -->
-    <div class="chat-view__header">
-      <div class="chat-view__heading">
-        <div class="chat-view__icon">
-          <MessageSquare :size="20" />
+    <!-- 顶部标题栏：标题 + 副标题 + 右侧知识库选择器 -->
+    <PageHeader
+      title="聊天问答"
+      subtitle="选择知识库后进行流式问答"
+    >
+      <template #actions>
+        <div class="chat-view__selector-wrap">
+          <span class="chat-view__selector-label">知识库</span>
+          <Select
+            :value="selectedKbId || undefined"
+            :options="kbOptions"
+            placeholder="请选择知识库"
+            :loading="isKbLoading"
+            :disabled="isKbLoading"
+            class="chat-view__select"
+            @change="handleKbChange"
+          />
         </div>
-        <div class="chat-view__heading-text">
-          <h2 class="chat-view__title">聊天问答</h2>
-          <p class="chat-view__desc">选择知识库后进行流式问答</p>
+      </template>
+    </PageHeader>
+
+    <!-- 内容区 -->
+    <div class="chat-view__content">
+      <!-- 知识库列表加载中 -->
+      <div v-if="isKbLoading && kbList.length === 0" class="chat-view__loading">
+        <Spin tip="加载知识库列表…" size="large" />
+      </div>
+
+      <!-- 知识库列表加载失败 -->
+      <Alert
+        v-else-if="isKbError"
+        type="error"
+        show-icon
+        :message="kbListError || '加载知识库列表失败'"
+      />
+
+      <!-- 未选择知识库 -->
+      <div v-else-if="!hasSelectedKb" class="chat-view__empty">
+        <div class="chat-view__empty-icon">
+          <MessageSquare :size="40" />
         </div>
+        <div class="chat-view__empty-title">请选择知识库后再提问</div>
+        <div class="chat-view__empty-desc">在右上角选择一个知识库后即可开始流式问答</div>
       </div>
-      <div class="chat-view__selector-wrap">
-        <span class="chat-view__selector-label">知识库</span>
-        <Select
-          :value="selectedKbId || undefined"
-          :options="kbOptions"
-          placeholder="请选择知识库"
-          :loading="isKbLoading"
-          :disabled="isKbLoading"
-          class="chat-view__select"
-          @change="handleKbChange"
-        />
-      </div>
+
+      <!-- 已选择知识库：展示聊天面板 -->
+      <ChatSsePanel
+        v-else
+        :key="selectedKbId"
+        :kb-id="selectedKbId"
+        :kb-name="selectedKbName"
+        mode="chat"
+        layout="horizontal"
+      />
     </div>
-
-    <!-- 知识库列表加载中 -->
-    <div v-if="isKbLoading && kbList.length === 0" class="chat-view__loading">
-      <Spin tip="加载知识库列表…" size="large" />
-    </div>
-
-    <!-- 知识库列表加载失败 -->
-    <Alert
-      v-else-if="isKbError"
-      type="error"
-      show-icon
-      :message="kbListError || '加载知识库列表失败'"
-    />
-
-    <!-- 未选择知识库 -->
-    <div v-else-if="!hasSelectedKb" class="chat-view__empty">
-      <div class="chat-view__empty-icon">
-        <MessageSquare :size="40" />
-      </div>
-      <div class="chat-view__empty-title">请选择知识库后再提问</div>
-      <div class="chat-view__empty-desc">在右上角选择一个知识库后即可开始流式问答</div>
-    </div>
-
-    <!-- 已选择知识库：展示聊天面板 -->
-    <ChatSsePanel
-      v-else
-      :key="selectedKbId"
-      :kb-id="selectedKbId"
-      :kb-name="selectedKbName"
-      mode="chat"
-      layout="horizontal"
-    />
   </div>
 </template>
 
 <style scoped>
 .chat-view {
-  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.chat-view__content {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 16px var(--page-padding);
+  max-width: 1200px;
 }
 
-.chat-view__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  background-color: var(--kb-surface);
-  border: 1px solid var(--kb-border);
-  border-radius: var(--kb-radius);
-}
-
-.chat-view__heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.chat-view__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--kb-primary-soft);
-  color: var(--kb-primary);
-  flex-shrink: 0;
-}
-
-.chat-view__heading-text {
-  min-width: 0;
-}
-
-.chat-view__title {
-  margin: 0 0 2px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--kb-text);
-  line-height: 1.2;
-}
-
-.chat-view__desc {
-  margin: 0;
-  font-size: 13px;
-  color: var(--kb-text-tertiary);
-}
-
+/* 知识库选择器（嵌入 PageHeader 操作区） */
 .chat-view__selector-wrap {
   display: flex;
   align-items: center;
@@ -211,6 +171,7 @@ watch(
 .chat-view__selector-label {
   font-size: 13px;
   color: var(--kb-text-tertiary);
+  white-space: nowrap;
 }
 
 .chat-view__select {

@@ -1,16 +1,14 @@
 <script setup lang="ts">
 /**
- * 设置页（P1.8 / Yuxi 风格）
- * - 配置后端 API 地址
- * - 测试连接：调用 GET /health
- * - 保存设置：写入 localStorage（key: ragent.apiBaseUrl）
- * - 恢复默认：清除 localStorage
+ * 设置页（Yuxi 风格 1:1 复刻）
+ *
+ * - PageHeader：sticky + blur，标题"设置" + 副标题
+ * - 内容区：单卡片，配置后端 API 地址 + 测试连接 + 保存/恢复默认
  * - 不存储 API Key / 模型密钥
- * - 使用统一蓝绿色主题
  */
 import { ref } from 'vue'
 import { Card, Form, FormItem, Input, Button, Space, Alert, message } from 'ant-design-vue'
-import { Save, RotateCcw, Plug, Settings } from 'lucide-vue-next'
+import { Save, RotateCcw, Plug } from 'lucide-vue-next'
 import {
   DEFAULT_API_BASE_URL,
   getApiBaseUrl,
@@ -20,6 +18,7 @@ import {
   formatApiError,
 } from '@/api/client'
 import { getHealthRaw } from '@/api/health'
+import PageHeader from '@/components/PageHeader.vue'
 
 const baseUrl = ref<string>(getApiBaseUrl())
 
@@ -99,120 +98,79 @@ async function handleTestConnection(): Promise<void> {
 
 <template>
   <div class="settings-view">
-    <!-- 顶部标题区 -->
-    <div class="settings-view__header">
-      <div class="settings-view__heading">
-        <div class="settings-view__icon">
-          <Settings :size="20" />
-        </div>
-        <div class="settings-view__heading-text">
-          <h2 class="settings-view__title">设置</h2>
-          <p class="settings-view__desc">配置后端 API 地址</p>
-        </div>
-      </div>
-    </div>
+    <!-- 顶部标题栏 -->
+    <PageHeader
+      title="设置"
+      subtitle="配置后端 API 地址"
+    />
 
-    <Card class="settings-view__card" :bordered="true">
-      <Form layout="vertical" class="settings-view__form">
-        <FormItem label="后端 API 地址">
-          <Input
-            v-model:value="baseUrl"
-            placeholder="请输入后端 API 地址，例如 http://localhost:8000"
-            allow-clear
+    <!-- 内容区 -->
+    <div class="settings-view__content">
+      <Card class="settings-view__card" :bordered="true">
+        <Form layout="vertical" class="settings-view__form">
+          <FormItem label="后端 API 地址">
+            <Input
+              v-model:value="baseUrl"
+              placeholder="请输入后端 API 地址，例如 http://localhost:8000"
+              allow-clear
+            />
+          </FormItem>
+          <FormItem label="当前后端地址">
+            <span class="settings-view__current">{{ baseUrl || '（未设置）' }}</span>
+          </FormItem>
+
+          <!-- 测试连接结果 -->
+          <Alert
+            v-if="testResult"
+            :type="testResult.type"
+            show-icon
+            :message="testResult.message"
+            class="settings-view__test-result"
           />
-        </FormItem>
-        <FormItem label="当前后端地址">
-          <span class="settings-view__current">{{ baseUrl || '（未设置）' }}</span>
-        </FormItem>
 
-        <!-- 测试连接结果 -->
-        <Alert
-          v-if="testResult"
-          :type="testResult.type"
-          show-icon
-          :message="testResult.message"
-          class="settings-view__test-result"
-        />
+          <FormItem>
+            <Space>
+              <Button :loading="testing" @click="handleTestConnection">
+                <template #icon><Plug :size="14" /></template>
+                测试连接
+              </Button>
+              <Button type="primary" @click="handleSave">
+                <template #icon><Save :size="14" /></template>
+                保存设置
+              </Button>
+              <Button @click="handleReset">
+                <template #icon><RotateCcw :size="14" /></template>
+                恢复默认
+              </Button>
+            </Space>
+          </FormItem>
+        </Form>
 
-        <FormItem>
-          <Space>
-            <Button :loading="testing" @click="handleTestConnection">
-              <template #icon><Plug :size="14" /></template>
-              测试连接
-            </Button>
-            <Button type="primary" @click="handleSave">
-              <template #icon><Save :size="14" /></template>
-              保存设置
-            </Button>
-            <Button @click="handleReset">
-              <template #icon><RotateCcw :size="14" /></template>
-              恢复默认
-            </Button>
-          </Space>
-        </FormItem>
-      </Form>
-
-      <div class="settings-view__tips">
-        <p>说明：</p>
-        <ul>
-          <li>默认地址为 <code>{{ DEFAULT_API_BASE_URL }}</code>。</li>
-          <li>前端所有请求将发往该地址。</li>
-          <li>「测试连接」会调用 <code>GET /health</code> 验证后端可达性。</li>
-          <li>修改后请点击「保存设置」以持久化，再前往「仪表盘」刷新状态。</li>
-        </ul>
-      </div>
-    </Card>
+        <div class="settings-view__tips">
+          <p>说明：</p>
+          <ul>
+            <li>默认地址为 <code>{{ DEFAULT_API_BASE_URL }}</code>。</li>
+            <li>前端所有请求将发往该地址。</li>
+            <li>「测试连接」会调用 <code>GET /health</code> 验证后端可达性。</li>
+            <li>修改后请点击「保存设置」以持久化，再前往「仪表盘」刷新状态。</li>
+          </ul>
+        </div>
+      </Card>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .settings-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.settings-view__content {
+  flex: 1;
+  padding: 16px var(--page-padding);
   max-width: 720px;
-}
-
-.settings-view__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.settings-view__heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.settings-view__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--kb-primary-soft);
-  color: var(--kb-primary);
-  flex-shrink: 0;
-}
-
-.settings-view__heading-text {
-  min-width: 0;
-}
-
-.settings-view__title {
-  margin: 0 0 2px;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--kb-text);
-  line-height: 1.2;
-}
-
-.settings-view__desc {
-  margin: 0;
-  font-size: 13px;
-  color: var(--kb-text-tertiary);
 }
 
 .settings-view__card {

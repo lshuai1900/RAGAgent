@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 知识库详情页（P1.6 / Yuxi 风格重构）
+ * 知识库详情页（Yuxi 风格 1:1 复刻）
  *
- * - 沉浸式布局：route.meta.immersive = true，隐藏全局左侧菜单与顶部标题栏
- * - 顶部 Header：返回 / 知识库图标 / 名称 / 副标题（RAG 知识库 · N 文件）/ 刷新
+ * - 沉浸式布局：route.meta.immersive = true，隐藏全局左侧菜单
+ * - 顶部 top-bar：返回 / 知识库图标 / 名称 / 副标题 / 复制 ID / 编辑 / 刷新
  * - 横向 Tab：文件管理 / 检索测试 / 知识图谱 / 知识导图 / RAG 评估 / 评估基准
  *   - 文件管理：真实功能（上传 + 搜索 + 行列表 + 状态轮询）
  *   - 检索测试：真实 SSE 流式问答
@@ -13,7 +13,8 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { Spin, Alert, Empty, message } from 'ant-design-vue'
+import { Spin, Alert, message } from 'ant-design-vue'
+import { Network, Map, BarChart3, ClipboardList } from 'lucide-vue-next'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { useDocumentStore } from '@/stores/document'
 import { useChatStore } from '@/stores/chat'
@@ -29,6 +30,14 @@ const VALID_TABS: TabKey[] = ['documents', 'retrieve']
 
 /** 规划中 Tab key（点击仅提示，不切换） */
 const PLANNED_TABS = new Set(['graph', 'mindmap', 'eval', 'benchmark'])
+
+/** 规划中 Tab 元信息（用于空态展示） */
+const PLANNED_TAB_INFO: Record<string, { label: string; icon: unknown }> = {
+  graph: { label: '知识图谱', icon: Network },
+  mindmap: { label: '知识导图', icon: Map },
+  eval: { label: 'RAG 评估', icon: BarChart3 },
+  benchmark: { label: '评估基准', icon: ClipboardList },
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -74,7 +83,7 @@ function handleTabSelect(key: string): void {
   }
 }
 
-/** 真实 Tab 切换：更新 activeTab（ KnowledgeBaseTabs 仅对非规划 Tab 触发） */
+/** 真实 Tab 切换：更新 activeTab */
 function handleTabUpdate(key: string): void {
   activeTab.value = key as TabKey
 }
@@ -133,9 +142,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  // 停止所有轮询并重置文档 store，避免内存泄漏与跨知识库污染
   docStore.reset()
-  // 取消进行中的 SSE 请求并重置聊天 store
   chatStore.reset()
   kbStore.resetDetail()
 })
@@ -143,10 +150,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="kb-workspace">
-    <!-- 顶部 Header -->
+    <!-- 顶部 top-bar -->
     <KnowledgeBaseDetailHeader
       :name="headerName"
       :document-count="documentCount"
+      :kb-id="kbId"
       :loading="isKbLoading"
       @back="goBack"
       @refresh="refreshKb"
@@ -172,7 +180,7 @@ onBeforeUnmount(() => {
 
       <!-- 知识库信息加载中（首次加载，详情尚未就绪） -->
       <div v-else-if="isKbLoading && !detail" class="kb-workspace__loading">
-        <Spin tip="加载中…" size="large" />
+        <Spin tip="加载中..." size="large" />
       </div>
 
       <template v-else>
@@ -193,9 +201,19 @@ onBeforeUnmount(() => {
           :kb-name="detail?.name"
         />
 
-        <!-- 兜底空态（规划中 Tab 不会切换到此） -->
-        <div v-else class="kb-workspace__placeholder">
-          <Empty description="该能力将在后续版本实现" />
+        <!-- 兜底空态（规划中 Tab 不会切换到此，因 PLANNED_TABS 不更新 activeTab） -->
+        <div v-else class="kb-workspace__planned">
+          <div class="kb-workspace__planned-icon">
+            <component
+              :is="PLANNED_TAB_INFO[activeTab]?.icon ?? Network"
+              :size="24"
+              :stroke-width="1.8"
+            />
+          </div>
+          <div class="kb-workspace__planned-title">
+            {{ PLANNED_TAB_INFO[activeTab]?.label ?? '功能' }}规划中
+          </div>
+          <div class="kb-workspace__planned-desc">该能力将在后续版本实现</div>
         </div>
       </template>
     </div>
@@ -219,13 +237,10 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px 28px 32px;
+  padding: 16px var(--page-padding);
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
 }
 
 .kb-workspace__alert {
@@ -239,10 +254,41 @@ onBeforeUnmount(() => {
   padding: 80px 0;
 }
 
-.kb-workspace__placeholder {
+/* 规划中 Tab 空态（Yuxi ResourceEmptyState 风格） */
+.kb-workspace__planned {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 300px;
+  padding: 72px 20px;
+  text-align: center;
+}
+
+.kb-workspace__planned-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--kb-radius);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 60px 0;
+  background-color: var(--kb-primary-bg);
+  border: 1px solid var(--kb-border);
+  color: var(--kb-primary-hover);
+  margin-bottom: 8px;
+}
+
+.kb-workspace__planned-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--kb-text-title);
+}
+
+.kb-workspace__planned-desc {
+  font-size: 14px;
+  color: var(--kb-text-tertiary);
+  max-width: 360px;
+  line-height: 1.6;
 }
 </style>

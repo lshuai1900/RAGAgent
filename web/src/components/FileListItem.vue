@@ -76,14 +76,14 @@ const hasError = computed(
   display: flex;
   align-items: center;
   gap: 14px;
-  height: 58px;
+  height: 56px;
   padding: 0 16px;
   border-bottom: 1px solid var(--kb-border-light);
   transition: background-color 0.15s;
 }
 
 .file-item:hover {
-  background-color: #f9fafb;
+  background-color: var(--kb-bg-hover);
 }
 
 /* 失败行不做重背景，保持列表清爽，仅状态徽标提示 */
@@ -98,8 +98,8 @@ const hasError = computed(
 
 .file-item__name {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--kb-text);
+  font-weight: 600;
+  color: var(--kb-text-title);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -127,14 +127,18 @@ const hasError = computed(
   cursor: help;
 }
 
+/* 状态 pill：24px 高，pill 圆角 */
 .file-item__badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 13px;
-  padding: 3px 10px;
-  border-radius: 12px;
-  line-height: 1.4;
+  font-size: 12px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--kb-radius-pill);
+  line-height: 1;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .file-item__badge--success {
