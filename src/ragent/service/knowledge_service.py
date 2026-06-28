@@ -37,6 +37,29 @@ _COLLECTION_PREFIX = "kb_"
 _KB_NOT_FOUND_CODE = 10404
 _KB_NOT_FOUND_HTTP_STATUS = 404
 
+# name 字段最大长度（与 t_knowledge_base.name 列约束一致）
+_KB_NAME_MAX_LENGTH = 128
+# 归档名称后缀，软删除时释放原名称占用，避免阻止同名重建
+_ARCHIVED_NAME_SUFFIX = "__deleted__"
+
+
+def _build_archived_name(original_name: str, kb_id: str) -> str:
+    """生成归档名称，释放原名称占用。
+
+    格式：``{原名称截断}__deleted__{kb_id}``，总长度不超过 ``_KB_NAME_MAX_LENGTH``。
+
+    Args:
+        original_name: 原知识库名称
+        kb_id: 知识库 ID
+
+    Returns:
+        归档后的名称（唯一，不会与 active 记录冲突）
+    """
+    suffix = f"{_ARCHIVED_NAME_SUFFIX}{kb_id}"
+    max_original_len = _KB_NAME_MAX_LENGTH - len(suffix)
+    truncated = original_name[: max(0, max_original_len)]
+    return f"{truncated}{suffix}"
+
 
 class KnowledgeService:
     """知识库 Service：编排 KB CRUD 与 Milvus collection 创建。"""
@@ -78,8 +101,8 @@ class KnowledgeService:
         Raises:
             BizException: 名称已存在 / Embedding 维度与配置不一致
         """
-        # 1. 名称唯一性校验
-        existing = await self._kb_repo.get_by_name(payload.name)
+        # 1. 名称唯一性校验（仅校验 active 知识库，archived 旧记录不阻止复用同名）
+        existing = await self._kb_repo.get_active_by_name(payload.name)
         if existing is not None:
             raise BizException(
                 message=f"知识库名称已存在: {payload.name}",
@@ -221,9 +244,9 @@ class KnowledgeService:
                 http_status=_KB_NOT_FOUND_HTTP_STATUS,
             )
 
-        # 名称变更：校验唯一性
+        # 名称变更：校验唯一性（仅校验 active，archived 旧记录不阻止复用同名）
         if payload.name is not None and payload.name != kb.name:
-            existing = await self._kb_repo.get_by_name(payload.name)
+            existing = await self._kb_repo.get_active_by_name(payload.name)
             if existing is not None and existing.id != kb_id:
                 raise BizException(
                     message=f"知识库名称已存在: {payload.name}",
@@ -277,8 +300,11 @@ class KnowledgeService:
         collection_name = kb.collection_name
         kb_name = kb.name
 
-        # 1. 软删除（归档）：先提交 DB，确保即使后续 collection 删除失败也不回滚
+        # 1. 软删除（归档）：status → archived，并释放原名称占用（改名为 __deleted__{id}），
+        #    避免原名称阻止后续重建同名知识库。先提交 DB，确保后续 collection 删除失败也不回滚。
+        archived_name = _build_archived_name(kb_name, kb_id)
         kb.status = KnowledgeBaseStatus.ARCHIVED.value
+        kb.name = archived_name
         await self._kb_repo.session.flush()
         await self._kb_repo.session.commit()
 
@@ -286,6 +312,7 @@ class KnowledgeService:
             "knowledge_base_archived",
             kb_id=kb_id,
             name=kb_name,
+            archived_name=archived_name,
             collection_name=collection_name,
         )
 

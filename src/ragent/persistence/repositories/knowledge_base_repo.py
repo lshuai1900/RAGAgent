@@ -41,7 +41,7 @@ class KnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
         return await self._session.get(KnowledgeBase, id)
 
     async def get_by_name(self, name: str) -> KnowledgeBase | None:
-        """按名称查询。
+        """按名称查询（含所有状态，含 archived）。
 
         Args:
             name: 知识库名称
@@ -50,6 +50,24 @@ class KnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
             KnowledgeBase 或 None
         """
         stmt = select(KnowledgeBase).where(KnowledgeBase.name == name)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_active_by_name(self, name: str) -> KnowledgeBase | None:
+        """按名称查询活跃知识库（仅 status == active）。
+
+        用于创建/重命名时的重名校验：archived 的旧记录不阻止复用同名。
+
+        Args:
+            name: 知识库名称
+
+        Returns:
+            KnowledgeBase 或 None（无活跃同名记录时）
+        """
+        stmt = select(KnowledgeBase).where(
+            KnowledgeBase.name == name,
+            KnowledgeBase.status == KnowledgeBaseStatus.ACTIVE.value,
+        )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 

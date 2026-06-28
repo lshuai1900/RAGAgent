@@ -507,6 +507,86 @@ async def test_deleted_kb_detail_not_found(
     assert detail_resp.json()["code"] == 10404
 
 
+@pytest.mark.asyncio
+async def test_delete_then_recreate_same_name_succeeds(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """删除知识库后，重新创建同名知识库应成功（名称已释放为 __deleted__{id}）。"""
+    client, resources = app_client
+    same_name = f"recreate-kb-{uuid.uuid4().hex[:8]}"
+
+    # 1. 创建
+    create1 = await client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": same_name, "embedding_dim": _MOCK_DIM},
+    )
+    assert create1.status_code == 201
+    kb_id_1 = create1.json()["data"]["id"]
+    resources["kb_ids"].append(kb_id_1)
+    resources["collections"].append(create1.json()["data"]["collection_name"])
+
+    # 2. 删除
+    delete_resp = await client.delete(f"/api/v1/knowledge-bases/{kb_id_1}")
+    assert delete_resp.status_code == 200
+
+    # 3. 重新创建同名：不应报重名（archived 旧记录名称已释放）
+    create2 = await client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": same_name, "embedding_dim": _MOCK_DIM},
+    )
+    assert create2.status_code == 201
+    assert create2.json()["data"]["name"] == same_name
+    kb_id_2 = create2.json()["data"]["id"]
+    assert kb_id_2 != kb_id_1
+    resources["kb_ids"].append(kb_id_2)
+    resources["collections"].append(create2.json()["data"]["collection_name"])
+
+    # 4. 列表中只有新的 active 记录，旧的 archived 不出现
+    list_resp = await client.get("/api/v1/knowledge-bases?page=1&page_size=100")
+    assert list_resp.status_code == 200
+    ids = [item["id"] for item in list_resp.json()["data"]["items"]]
+    assert kb_id_2 in ids
+    assert kb_id_1 not in ids
+
+
+@pytest.mark.asyncio
+async def test_rename_to_archived_same_name_succeeds(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """重命名时，archived 旧记录占用的同名不应阻止 active 知识库使用。"""
+    client, resources = app_client
+    target_name = f"target-{uuid.uuid4().hex[:8]}"
+
+    # KB A：使用 target_name 后删除（archived，名称释放）
+    create_a = await client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": target_name, "embedding_dim": _MOCK_DIM},
+    )
+    kb_id_a = create_a.json()["data"]["id"]
+    resources["kb_ids"].append(kb_id_a)
+    resources["collections"].append(create_a.json()["data"]["collection_name"])
+
+    delete_a = await client.delete(f"/api/v1/knowledge-bases/{kb_id_a}")
+    assert delete_a.status_code == 200
+
+    # KB B：另一个 active 知识库
+    create_b = await client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": f"other-{uuid.uuid4().hex[:8]}", "embedding_dim": _MOCK_DIM},
+    )
+    kb_id_b = create_b.json()["data"]["id"]
+    resources["kb_ids"].append(kb_id_b)
+    resources["collections"].append(create_b.json()["data"]["collection_name"])
+
+    # 重命名 B 为 target_name：archived A 不应阻止
+    patch_resp = await client.patch(
+        f"/api/v1/knowledge-bases/{kb_id_b}",
+        json={"name": target_name},
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["data"]["name"] == target_name
+
+
 # ---------- Document Upload API ----------
 
 
