@@ -4,7 +4,7 @@
 - lifespan：启动时初始化日志，关闭时释放 engine 资源
 - 注册中间件：TraceMiddleware（trace_id 注入 + X-Trace-Id 响应头）
 - 注册异常处理器：RagentException + Exception 兜底
-- 挂载路由：/health、/api/v1/knowledge-bases、/api/v1/documents
+- 挂载路由：/health、/api/v1/knowledge-bases、/api/v1/documents、/api/v1/chat
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from ragent.api.deps import get_embedding_client, get_vector_store
+from ragent.api.v1.chat import router as chat_router
 from ragent.api.v1.documents import router as documents_router
 from ragent.api.v1.health import router as health_router
 from ragent.api.v1.knowledge_bases import router as knowledge_bases_router
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(knowledge_bases_router)
     app.include_router(documents_router)
+    app.include_router(chat_router)
 
     return app
 

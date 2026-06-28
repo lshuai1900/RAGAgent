@@ -49,10 +49,20 @@ class MilvusConfig(BaseModel):
 
 
 class LlmConfig(BaseModel):
-    """LLM 配置。"""
+    """LLM 配置。
+
+    api_key_ref 为环境变量名（密钥不入库明文），实际密钥从环境变量读取。
+    默认对齐 DashScope 兼容端点（qwen 系列）。
+    """
 
     default_provider: str = "qwen"
+    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_ref: str = "QWEN_API_KEY"
+    model: str = "qwen-plus"
     timeout: int = 60
+    temperature: float = 0.0
+    top_p: float = 1.0
+    max_tokens: int | None = None
 
 
 class EmbeddingConfig(BaseModel):
