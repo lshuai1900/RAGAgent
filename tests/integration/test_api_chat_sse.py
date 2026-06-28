@@ -108,11 +108,19 @@ class _MockMemoryStore:
         pass
 
 
+class _MockSession:
+    """Mock AsyncSession：仅提供 commit() 方法。"""
+
+    async def commit(self) -> None:
+        pass
+
+
 class _MockChatMessageRepo:
     """Mock ChatMessageRepository。"""
 
     def __init__(self) -> None:
         self.appended: list[dict[str, Any]] = []
+        self.session = _MockSession()
 
     async def append_message(
         self,
@@ -124,13 +132,15 @@ class _MockChatMessageRepo:
         token_count: int = 0,
         latency_ms: int | None = None,
     ) -> Any:
-        self.appended.append({
-            "session_id": session_id,
-            "role": message.role,
-            "content": message.content,
-            "retrieval_context": retrieval_context,
-            "trace_id": trace_id,
-        })
+        self.appended.append(
+            {
+                "session_id": session_id,
+                "role": message.role,
+                "content": message.content,
+                "retrieval_context": retrieval_context,
+                "trace_id": trace_id,
+            }
+        )
         return None
 
 
@@ -207,9 +217,9 @@ def _parse_sse_events(raw_text: str) -> list[dict[str, Any]]:
     for line in raw_text.split("\n"):
         line = line.rstrip("\r")
         if line.startswith("event:"):
-            current_event = line[len("event:"):].strip()
+            current_event = line[len("event:") :].strip()
         elif line.startswith("data:"):
-            current_data_lines.append(line[len("data:"):].strip())
+            current_data_lines.append(line[len("data:") :].strip())
         elif line == "":
             # 事件分隔
             if current_event and current_data_lines:

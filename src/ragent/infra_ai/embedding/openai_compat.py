@@ -147,10 +147,7 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
             batch_vectors = self._parse_response(body)
             if len(batch_vectors) != len(batch):
                 raise InfraException(
-                    message=(
-                        f"Embedding 响应数量与请求不匹配: "
-                        f"请求 {len(batch)} 条，响应 {len(batch_vectors)} 条"
-                    ),
+                    message=(f"Embedding 响应数量与请求不匹配: 请求 {len(batch)} 条，响应 {len(batch_vectors)} 条"),
                     code=30013,
                 )
             results.extend(batch_vectors)
@@ -191,9 +188,7 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
         """确保 API Key 可用，否则抛 InfraException。"""
         if not self._api_key:
             raise InfraException(
-                message=(
-                    f"Embedding API Key 未配置：环境变量 {self._api_key_ref} 未设置"
-                ),
+                message=(f"Embedding API Key 未配置：环境变量 {self._api_key_ref} 未设置"),
                 code=30015,
             )
 

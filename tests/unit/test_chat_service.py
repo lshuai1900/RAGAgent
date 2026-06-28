@@ -118,11 +118,19 @@ class _MockChatSessionRepo:
         self.increment_calls.append((session_id, delta))
 
 
+class _MockSession:
+    """Mock AsyncSession：仅提供 commit() 方法。"""
+
+    async def commit(self) -> None:
+        pass
+
+
 class _MockChatMessageRepo:
     """Mock ChatMessageRepository：记录所有 append_message 调用。"""
 
     def __init__(self) -> None:
         self.appended: list[dict[str, Any]] = []
+        self.session = _MockSession()
 
     async def append_message(
         self,
@@ -175,6 +183,7 @@ def _make_service(
     prompt_service = PromptService()
     # 用真实 IdentityReranker + DeduplicationPostProcessor
     from ragent.infra_ai.rerank.identity import IdentityReranker
+
     reranker = IdentityReranker()
     processors = post_processors or [DeduplicationPostProcessor()]
 

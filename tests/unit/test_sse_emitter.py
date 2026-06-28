@@ -92,6 +92,7 @@ def test_serialize_event_ensure_ascii_false() -> None:
 @pytest.mark.asyncio
 async def test_stream_sse_events_normal_flow() -> None:
     """正常流程：start → delta* → done。"""
+
     async def chunk_iter() -> AsyncIterator[ChatChunk]:
         yield ChatChunk(delta="你好", finish_reason=None)
         yield ChatChunk(delta="世界", finish_reason=None)
@@ -122,6 +123,7 @@ async def test_stream_sse_events_normal_flow() -> None:
 @pytest.mark.asyncio
 async def test_stream_sse_events_empty_delta_skipped() -> None:
     """空 delta 的 chunk 不发送 delta 事件。"""
+
     async def chunk_iter() -> AsyncIterator[ChatChunk]:
         yield ChatChunk(delta="", finish_reason=None)  # 空 delta
         yield ChatChunk(delta="有内容", finish_reason=None)
@@ -143,6 +145,7 @@ async def test_stream_sse_events_empty_delta_skipped() -> None:
 @pytest.mark.asyncio
 async def test_stream_sse_events_ragent_exception_sends_error() -> None:
     """RagentException → 发送 error 事件（含 code）。"""
+
     async def chunk_iter() -> AsyncIterator[ChatChunk]:
         yield ChatChunk(delta="部分", finish_reason=None)
         raise BizException(message="业务异常", code=10501)
@@ -166,6 +169,7 @@ async def test_stream_sse_events_ragent_exception_sends_error() -> None:
 @pytest.mark.asyncio
 async def test_stream_sse_events_generic_exception_sends_error() -> None:
     """未知异常 → 发送通用 error 事件（默认 code）。"""
+
     async def chunk_iter() -> AsyncIterator[ChatChunk]:
         # yield 使其成为 async generator（空 delta 不会发送 delta 事件）
         yield ChatChunk(delta="", finish_reason=None)
@@ -185,6 +189,7 @@ async def test_stream_sse_events_generic_exception_sends_error() -> None:
 @pytest.mark.asyncio
 async def test_stream_sse_events_cancelled_does_not_raise() -> None:
     """客户端断开（CancelledError）不抛异常，不发送 error。"""
+
     async def chunk_iter() -> AsyncIterator[ChatChunk]:
         yield ChatChunk(delta="start", finish_reason=None)
         raise asyncio.CancelledError()
@@ -204,6 +209,7 @@ async def test_stream_sse_events_cancelled_does_not_raise() -> None:
 @pytest.mark.asyncio
 async def test_stream_sse_events_start_always_first() -> None:
     """start 事件总是第一个发送（即使迭代器为空）。"""
+
     async def empty_iter() -> AsyncIterator[ChatChunk]:
         return
         yield  # type: ignore[unreachable]

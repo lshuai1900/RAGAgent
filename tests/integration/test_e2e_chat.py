@@ -158,14 +158,28 @@ async def e2e_app_client(
 
     app = create_app()
 
+    from fastapi import Depends
+
+    from ragent.api.deps import (
+        get_chat_message_repo as _orig_get_chat_message_repo,
+    )
     from ragent.api.deps import (
         get_chat_service as _orig_get_chat_service,
+    )
+    from ragent.api.deps import (
+        get_chat_session_repo as _orig_get_chat_session_repo,
+    )
+    from ragent.api.deps import (
+        get_document_repo as _orig_get_document_repo,
     )
     from ragent.api.deps import (
         get_embedding_client as _orig_get_embedding_client,
     )
     from ragent.api.deps import (
         get_ingestion_service as _orig_get_ingestion_service,
+    )
+    from ragent.api.deps import (
+        get_kb_repo as _orig_get_kb_repo,
     )
     from ragent.api.deps import (
         get_knowledge_service as _orig_get_knowledge_service,
@@ -195,7 +209,7 @@ async def e2e_app_client(
         return mock_llm
 
     def _override_knowledge_service(
-        kb_repo: KnowledgeBaseRepository,
+        kb_repo: KnowledgeBaseRepository = Depends(_orig_get_kb_repo),
     ) -> KnowledgeService:
         return KnowledgeService(
             kb_repo=kb_repo,
@@ -204,8 +218,8 @@ async def e2e_app_client(
         )
 
     def _override_ingestion_service(
-        kb_repo: KnowledgeBaseRepository,
-        document_repo: DocumentRepository,
+        kb_repo: KnowledgeBaseRepository = Depends(_orig_get_kb_repo),
+        document_repo: DocumentRepository = Depends(_orig_get_document_repo),
     ) -> IngestionService:
         return IngestionService(
             kb_repo=kb_repo,
@@ -214,9 +228,9 @@ async def e2e_app_client(
         )
 
     def _override_chat_service(
-        kb_repo: KnowledgeBaseRepository,
-        chat_message_repo: ChatMessageRepository,
-        chat_session_repo: ChatSessionRepository,
+        kb_repo: KnowledgeBaseRepository = Depends(_orig_get_kb_repo),
+        chat_message_repo: ChatMessageRepository = Depends(_orig_get_chat_message_repo),
+        chat_session_repo: ChatSessionRepository = Depends(_orig_get_chat_session_repo),
     ) -> ChatService:
         """构造真实 ChatService（含 Mock LLM + Real Retriever + Real Memory）。"""
         retriever = VectorRetriever(
@@ -356,9 +370,9 @@ def _parse_sse_events(raw_text: str) -> list[dict[str, Any]]:
     for line in raw_text.split("\n"):
         line = line.rstrip("\r")
         if line.startswith("event:"):
-            current_event = line[len("event:"):].strip()
+            current_event = line[len("event:") :].strip()
         elif line.startswith("data:"):
-            current_data_lines.append(line[len("data:"):].strip())
+            current_data_lines.append(line[len("data:") :].strip())
         elif line == "":
             if current_event and current_data_lines:
                 data_str = "\n".join(current_data_lines)

@@ -113,9 +113,7 @@ class MarkdownParser:
             content_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
             section_content = text[content_start:content_end].strip()
             if section_content:
-                sections.append(
-                    Section(content=section_content, page=None, heading=heading_text)
-                )
+                sections.append(Section(content=section_content, page=None, heading=heading_text))
 
         return sections
 

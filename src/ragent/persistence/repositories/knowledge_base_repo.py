@@ -81,8 +81,10 @@ class KnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
         """统计活跃知识库总数。"""
         from sqlalchemy import func
 
-        stmt = select(func.count()).select_from(KnowledgeBase).where(
-            KnowledgeBase.status == KnowledgeBaseStatus.ACTIVE.value
+        stmt = (
+            select(func.count())
+            .select_from(KnowledgeBase)
+            .where(KnowledgeBase.status == KnowledgeBaseStatus.ACTIVE.value)
         )
         result = await self._session.execute(stmt)
         return int(result.scalar() or 0)

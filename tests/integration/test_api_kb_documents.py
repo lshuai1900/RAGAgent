@@ -111,11 +111,19 @@ async def app_client(
 
     # 通过 dependency_overrides 注入 Mock，覆盖 deps 单例
     # 注意：必须使用原 deps 函数引用作为 key（FastAPI 通过引用匹配依赖）
+    from fastapi import Depends
+
+    from ragent.api.deps import (
+        get_document_repo as _orig_get_document_repo,
+    )
     from ragent.api.deps import (
         get_embedding_client as _orig_get_embedding_client,
     )
     from ragent.api.deps import (
         get_ingestion_service as _orig_get_ingestion_service,
+    )
+    from ragent.api.deps import (
+        get_kb_repo as _orig_get_kb_repo,
     )
     from ragent.api.deps import (
         get_knowledge_service as _orig_get_knowledge_service,
@@ -141,7 +149,7 @@ async def app_client(
         return pipeline
 
     def _override_knowledge_service(
-        kb_repo: KnowledgeBaseRepository,
+        kb_repo: KnowledgeBaseRepository = Depends(_orig_get_kb_repo),
     ) -> KnowledgeService:
         return KnowledgeService(
             kb_repo=kb_repo,
@@ -150,8 +158,8 @@ async def app_client(
         )
 
     def _override_ingestion_service(
-        kb_repo: KnowledgeBaseRepository,
-        document_repo: DocumentRepository,
+        kb_repo: KnowledgeBaseRepository = Depends(_orig_get_kb_repo),
+        document_repo: DocumentRepository = Depends(_orig_get_document_repo),
     ) -> IngestionService:
         return IngestionService(
             kb_repo=kb_repo,
@@ -567,8 +575,7 @@ async def test_get_document_status(
 
     # 最终状态应为 completed（Mock Embedding 不会失败）
     assert final_status == "completed", (
-        f"文档状态未变为 completed，实际: {final_status}, "
-        f"error: {immediate_resp.json()}"
+        f"文档状态未变为 completed，实际: {final_status}, error: {immediate_resp.json()}"
     )
 
 

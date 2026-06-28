@@ -85,9 +85,7 @@ async def db_session(
     # 确保表已创建（alembic 已迁移）
     async with engine.begin() as conn:
         # 仅检查表是否存在，不重复创建（依赖 alembic upgrade head）
-        result = await conn.execute(
-            text("SELECT to_regclass('t_document_chunk')")
-        )
+        result = await conn.execute(text("SELECT to_regclass('t_document_chunk')"))
         if result.scalar() is None:
             pytest.skip("数据库表未迁移，请先执行 alembic upgrade head")
 
@@ -127,6 +125,8 @@ async def clean_kb_and_collection(db_session: AsyncSession):
         status="active",
     )
     db_session.add(kb)
+    # 先 flush KB，确保 FK 约束在 Document 插入时满足
+    await db_session.flush()
 
     # 创建测试 Document
     doc_id = generate_id()
@@ -188,8 +188,7 @@ async def test_pipeline_run_end_to_end(
     # 准备测试文件
     file_path = tmp_path / "test.txt"
     file_path.write_text(
-        "这是第一段内容，用于测试 pipeline。这是第二段内容，更长一些，确保会被切分为多个分块。"
-        * 10,
+        "这是第一段内容，用于测试 pipeline。这是第二段内容，更长一些，确保会被切分为多个分块。" * 10,
         encoding="utf-8",
     )
 

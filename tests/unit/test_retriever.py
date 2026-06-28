@@ -335,8 +335,7 @@ async def test_identity_reranker_truncates_to_top_k() -> None:
     """直通截断到 top_k，不改变顺序。"""
     r = IdentityReranker()
     candidates = [
-        RetrievalResult(chunk_id=f"c{i}", document_id="d", kb_id="k", content=f"x{i}", score=0.1 * i)
-        for i in range(5)
+        RetrievalResult(chunk_id=f"c{i}", document_id="d", kb_id="k", content=f"x{i}", score=0.1 * i) for i in range(5)
     ]
     out = await r.rerank("q", candidates, top_k=3)
     assert len(out) == 3

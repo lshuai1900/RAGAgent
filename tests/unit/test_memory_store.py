@@ -57,12 +57,16 @@ class _MockChatMessageRepo:
         latency_ms: int | None = None,
     ) -> _MockMessageEntity:
         self.appended.append(
-            (session_id, message, {
-                "retrieval_context": retrieval_context,
-                "trace_id": trace_id,
-                "token_count": token_count,
-                "latency_ms": latency_ms,
-            })
+            (
+                session_id,
+                message,
+                {
+                    "retrieval_context": retrieval_context,
+                    "trace_id": trace_id,
+                    "token_count": token_count,
+                    "latency_ms": latency_ms,
+                },
+            )
         )
         return _MockMessageEntity(message.role, message.content)
 

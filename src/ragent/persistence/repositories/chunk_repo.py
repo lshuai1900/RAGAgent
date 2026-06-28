@@ -86,9 +86,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         """统计某文档的分块数。"""
         from sqlalchemy import func
 
-        stmt = select(func.count()).select_from(DocumentChunk).where(
-            DocumentChunk.document_id == document_id
-        )
+        stmt = select(func.count()).select_from(DocumentChunk).where(DocumentChunk.document_id == document_id)
         result = await self._session.execute(stmt)
         return int(result.scalar() or 0)
 
@@ -156,10 +154,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
             .order_by(DocumentChunk.chunk_index.asc())
         )
         result = await self._session.execute(stmt)
-        return [
-            {"id": row[0], "metadata": dict(row[1] or {}), "content": row[2]}
-            for row in result.all()
-        ]
+        return [{"id": row[0], "metadata": dict(row[1] or {}), "content": row[2]} for row in result.all()]
 
 
 __all__ = [

@@ -143,9 +143,7 @@ class ChatService:
         await self._chat_session_repo.get_or_create(session_id, kb_id=kb_id)
 
         # 2. 加载历史
-        history_messages = await self._memory_store.load_history(
-            session_id, _MAX_HISTORY_MESSAGES
-        )
+        history_messages = await self._memory_store.load_history(session_id, _MAX_HISTORY_MESSAGES)
         history_text = self._format_history(history_messages)
 
         # 3. 检索 + 后处理 + Rerank
@@ -170,6 +168,7 @@ class ChatService:
             trace_id=trace_id,
         )
         await self._chat_session_repo.increment_message_count(session_id, delta=1)
+        await self._chat_message_repo.session.commit()
 
         # 6. LLM 流式生成 + 收集完整回复
         full_reply_parts: list[str] = []
@@ -204,6 +203,7 @@ class ChatService:
             latency_ms=latency_ms,
         )
         await self._chat_session_repo.increment_message_count(session_id, delta=1)
+        await self._chat_message_repo.session.commit()
 
         _logger.info(
             "chat_stream_completed",

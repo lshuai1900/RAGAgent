@@ -28,10 +28,7 @@ router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
     "/sse",
     status_code=status.HTTP_200_OK,
     summary="流式问答（SSE）",
-    description=(
-        "基于知识库的流式问答接口。"
-        "返回 SSE 事件流：start → delta* → done（或 error）。"
-    ),
+    description=("基于知识库的流式问答接口。返回 SSE 事件流：start → delta* → done（或 error）。"),
 )
 async def chat_sse(
     payload: ChatSseRequest,

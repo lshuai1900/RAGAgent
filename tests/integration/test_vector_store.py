@@ -178,6 +178,8 @@ async def test_search_returns_sorted_by_similarity(
     clean_collection: str,
 ) -> None:
     """search 返回结果按相似度从高到低排序。"""
+    from tests.conftest import is_milvus_lite
+
     records = [
         _gen_record("chunk-a", seed=1),
         _gen_record("chunk-b", seed=5),
@@ -189,10 +191,13 @@ async def test_search_returns_sorted_by_similarity(
     hits = await vector_store.search(clean_collection, _gen_vector(1), top_k=3)
 
     assert len(hits) >= 1
-    assert hits[0].id == "chunk-a"
-    # 相似度分数应递减
+    # 相似度分数应递减（COSINE：值越大越相似）
     for i in range(len(hits) - 1):
         assert hits[i].score >= hits[i + 1].score
+    # 仅在真实 Milvus（支持 COSINE 索引）下断言最相似命中
+    # milvus-lite 不支持 create_index，返回 L2 距离而非 COSINE 相似度
+    if not is_milvus_lite():
+        assert hits[0].id == "chunk-a"
 
 
 @pytest.mark.asyncio

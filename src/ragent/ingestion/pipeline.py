@@ -171,9 +171,7 @@ class IngestionPipeline:
             return 0
 
         if len(chunks) != len(vectors):
-            raise ValueError(
-                f"chunks 与 vectors 数量不一致: chunks={len(chunks)} vectors={len(vectors)}"
-            )
+            raise ValueError(f"chunks 与 vectors 数量不一致: chunks={len(chunks)} vectors={len(vectors)}")
 
         # 1. 写 PostgreSQL 元数据（chunk.id 由雪花生成器产生）
         chunk_entities: list[DocumentChunk] = []
@@ -215,9 +213,7 @@ class IngestionPipeline:
 
         # 4. 更新分块 Embedding 状态为 indexed
         chunk_ids = [c.id for c in chunk_entities]
-        await chunk_repo.update_embedding_status_batch(
-            chunk_ids, ChunkEmbeddingStatus.INDEXED.value
-        )
+        await chunk_repo.update_embedding_status_batch(chunk_ids, ChunkEmbeddingStatus.INDEXED.value)
 
         _logger.info(
             "pipeline_index_done",

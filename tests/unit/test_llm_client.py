@@ -86,6 +86,7 @@ def _make_mock_transport(
 ) -> httpx.MockTransport:
     """构造 Mock transport，按需返回非流式 / 流式 / 错误响应。"""
     if stream_bytes is not None:
+
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 status_code=status_code,
@@ -94,6 +95,7 @@ def _make_mock_transport(
                 request=request,
             )
     elif json_body is not None:
+
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 status_code=status_code,
@@ -101,12 +103,14 @@ def _make_mock_transport(
                 request=request,
             )
     else:
+
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 status_code=status_code,
                 text=text or "",
                 request=request,
             )
+
     return httpx.MockTransport(handler)
 
 
@@ -315,10 +319,10 @@ async def test_stream_chat_ignores_non_data_lines() -> None:
     # 手工构造含 event: 行与注释行
     lines = [
         ": heartbeat",
-        'event: ping',
+        "event: ping",
         'data: {"choices":[{"delta":{"content":"hi"},"finish_reason":null}]}',
         'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
-        'data: [DONE]',
+        "data: [DONE]",
     ]
     raw = ("\n".join(lines) + "\n").encode("utf-8")
     transport = _make_mock_transport(stream_bytes=raw)
@@ -413,9 +417,7 @@ def test_parse_stream_chunk_with_content() -> None:
 
 def test_parse_stream_chunk_with_finish_reason() -> None:
     """_parse_stream_chunk 含 finish_reason 的 chunk 正常解析。"""
-    chunk = OpenAICompatibleLLMClient._parse_stream_chunk(
-        {"choices": [{"delta": {}, "finish_reason": "stop"}]}
-    )
+    chunk = OpenAICompatibleLLMClient._parse_stream_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]})
     assert chunk is not None
     assert chunk.delta == ""
     assert chunk.finish_reason == "stop"
@@ -423,9 +425,7 @@ def test_parse_stream_chunk_with_finish_reason() -> None:
 
 def test_parse_stream_chunk_empty_returns_none() -> None:
     """_parse_stream_chunk 无 content 且无 finish_reason 返回 None。"""
-    chunk = OpenAICompatibleLLMClient._parse_stream_chunk(
-        {"choices": [{"delta": {}, "finish_reason": None}]}
-    )
+    chunk = OpenAICompatibleLLMClient._parse_stream_chunk({"choices": [{"delta": {}, "finish_reason": None}]})
     assert chunk is None
 
 

@@ -57,10 +57,7 @@ class DbMemoryStore(BaseMemoryStore):
             消息列表（按时间升序）
         """
         entities = await self._message_repo.list_recent(session_id, max_messages)
-        messages = [
-            ChatMessage(role=entity.role, content=entity.content)
-            for entity in entities
-        ]
+        messages = [ChatMessage(role=entity.role, content=entity.content) for entity in entities]
         _logger.info(
             "memory_load_history",
             session_id=session_id,

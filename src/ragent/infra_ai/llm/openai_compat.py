@@ -247,9 +247,7 @@ class OpenAICompatibleLLMClient(BaseLLMClient):
         """确保 API Key 可用，否则抛 InfraException。"""
         if not self._api_key:
             raise InfraException(
-                message=(
-                    f"LLM API Key 未配置：环境变量 {self._api_key_ref} 未设置"
-                ),
+                message=(f"LLM API Key 未配置：环境变量 {self._api_key_ref} 未设置"),
                 code=30035,
             )
 

@@ -180,9 +180,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         """统计会话消息数。"""
         from sqlalchemy import func
 
-        stmt = select(func.count()).select_from(ChatMessage).where(
-            ChatMessage.session_id == session_id
-        )
+        stmt = select(func.count()).select_from(ChatMessage).where(ChatMessage.session_id == session_id)
         result = await self._session.execute(stmt)
         return int(result.scalar() or 0)
 

@@ -53,9 +53,7 @@ class PdfParser:
         full_text_parts: list[str] = []
         for page_num, page_text in pages_text:
             if page_text.strip():  # 跳过纯空白页
-                sections.append(
-                    Section(content=page_text, page=page_num, heading=None)
-                )
+                sections.append(Section(content=page_text, page=page_num, heading=None))
                 full_text_parts.append(page_text)
 
         full_text = "\n\n".join(full_text_parts)
