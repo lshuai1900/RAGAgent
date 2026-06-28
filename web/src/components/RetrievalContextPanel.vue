@@ -230,4 +230,23 @@ function fmtText(v: unknown): string {
 .rcp__toggle:hover {
   color: #4096ff;
 }
+
+/* 知识库工作台内（检索测试 Tab）轻量视觉统一：图标 / 链接跟随蓝绿色主色 */
+:global(.kb-workspace) .rcp__icon {
+  color: var(--kb-primary);
+}
+
+:global(.kb-workspace) .rcp__item {
+  border-color: var(--kb-border);
+  border-radius: var(--kb-radius);
+  background-color: var(--kb-bg);
+}
+
+:global(.kb-workspace) .rcp__toggle {
+  color: var(--kb-primary);
+}
+
+:global(.kb-workspace) .rcp__toggle:hover {
+  color: var(--kb-primary-hover);
+}
 </style>

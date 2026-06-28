@@ -22,7 +22,8 @@ const routes: RouteRecordRaw[] = [
     path: '/knowledge-bases/:kbId',
     name: 'knowledgeBaseDetail',
     component: () => import('@/views/KnowledgeBaseDetailView.vue'),
-    meta: { title: '知识库详情' },
+    // immersive: 进入详情页时使用沉浸式布局（隐藏左侧菜单与顶部标题栏）
+    meta: { title: '知识库详情', immersive: true },
     props: true,
   },
   {
