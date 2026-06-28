@@ -46,6 +46,23 @@ def _make_mock_client(
     return httpx.AsyncClient(transport=transport)
 
 
+def _make_capturing_client(
+    responses: list[httpx.Response],
+    captured: list[dict[str, Any]],
+) -> httpx.AsyncClient:
+    """构造 Mock httpx.AsyncClient，按顺序返回响应并捕获每次请求的 JSON body。"""
+    import json
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        try:
+            captured.append(json.loads(req.content) if req.content else {})
+        except (ValueError, json.JSONDecodeError):
+            captured.append({})
+        return responses.pop(0)
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
 def _make_embedding_response(vectors: list[list[float]], model: str = "text-embedding-v3") -> dict[str, Any]:
     """构造 OpenAI 风格的 embedding 响应 JSON。"""
     return {
@@ -314,4 +331,125 @@ async def test_api_key_from_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
     # 调用成功即说明 API Key 已读取
     result = await client.embed(["t1"])
     assert result == [[0.1, 0.2]]
+    await client.close()
+
+
+# ---------- 请求体契约 ----------
+
+
+@pytest.mark.asyncio
+async def test_default_payload_contains_required_fields() -> None:
+    """默认请求体包含 model / input / encoding_format。"""
+    captured: list[dict[str, Any]] = []
+    response_json = _make_embedding_response([[0.1, 0.2]])
+    mock_client = _make_capturing_client([_make_mock_response(200, json_body=response_json)], captured)
+
+    client = OpenAICompatibleEmbeddingClient(
+        base_url="https://example.com/v1",
+        api_key_ref="TEST_API_KEY",
+        model="text-embedding-v3",
+        dim=2,
+        api_key="dummy",
+        http_client=mock_client,
+    )
+
+    await client.embed(["hello"])
+
+    assert len(captured) == 1
+    payload = captured[0]
+    assert payload["model"] == "text-embedding-v3"
+    assert payload["input"] == ["hello"]
+    assert payload["encoding_format"] == "float"
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_default_payload_does_not_contain_dashscope_incompatible_fields() -> None:
+    """默认请求体不包含 DashScope 不兼容字段（dimensions / user）。"""
+    captured: list[dict[str, Any]] = []
+    response_json = _make_embedding_response([[0.1, 0.2]])
+    mock_client = _make_capturing_client([_make_mock_response(200, json_body=response_json)], captured)
+
+    client = OpenAICompatibleEmbeddingClient(
+        base_url="https://example.com/v1",
+        api_key_ref="TEST_API_KEY",
+        model="text-embedding-v3",
+        dim=1024,
+        api_key="dummy",
+        http_client=mock_client,
+    )
+
+    await client.embed(["hello"])
+
+    payload = captured[0]
+    assert "dimensions" not in payload
+    assert "user" not in payload
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_embed_splits_at_ten_texts_by_default() -> None:
+    """默认 batch_size=10：15 条 input 触发 2 次请求（10 + 5），结果按原顺序合并。"""
+    texts = [f"t{i}" for i in range(15)]
+    # 第 1 批返回 10 条向量，第 2 批返回 5 条向量
+    responses = [
+        _make_mock_response(
+            200,
+            json_body=_make_embedding_response([[float(i), 0.0] for i in range(10)]),
+        ),
+        _make_mock_response(
+            200,
+            json_body=_make_embedding_response([[float(i) + 100, 0.0] for i in range(5)]),
+        ),
+    ]
+    captured: list[dict[str, Any]] = []
+    mock_client = _make_capturing_client(responses, captured)
+
+    client = OpenAICompatibleEmbeddingClient(
+        base_url="https://example.com/v1",
+        api_key_ref="TEST_API_KEY",
+        model="m",
+        dim=2,
+        api_key="dummy",
+        http_client=mock_client,
+        # 不传 batch_size，使用默认值 10
+    )
+
+    result = await client.embed(texts)
+
+    assert len(result) == 15
+    # 2 次请求
+    assert len(captured) == 2
+    # 第 1 批 10 条，第 2 批 5 条
+    assert len(captured[0]["input"]) == 10
+    assert len(captured[1]["input"]) == 5
+    # 顺序合并：前 10 条来自第 1 批，后 5 条来自第 2 批
+    assert result[0] == [0.0, 0.0]
+    assert result[9] == [9.0, 0.0]
+    assert result[10] == [100.0, 0.0]
+    assert result[14] == [104.0, 0.0]
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_http_400_error_message_contains_response_body() -> None:
+    """HTTP 400 时异常信息包含 response body，便于定位 DashScope 报错原因。"""
+    error_body = '{"error":{"message":"input data length exceeds max limit","code":"BadRequest"}}'
+    error_response = _make_mock_response(400, text=error_body)
+    mock_client = _make_mock_client([error_response])
+
+    client = OpenAICompatibleEmbeddingClient(
+        base_url="https://example.com/v1",
+        api_key_ref="TEST_API_KEY",
+        model="m",
+        dim=2,
+        api_key="dummy",
+        http_client=mock_client,
+    )
+
+    with pytest.raises(InfraException) as exc_info:
+        await client.embed(["text"])
+    assert exc_info.value.code == 30010
+    assert "400" in exc_info.value.message
+    assert "input data length exceeds max limit" in exc_info.value.message
     await client.close()

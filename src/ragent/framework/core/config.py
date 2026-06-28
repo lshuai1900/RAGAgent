@@ -77,7 +77,7 @@ class EmbeddingConfig(BaseModel):
     api_key_ref: str = "QWEN_API_KEY"
     model: str = "text-embedding-v3"
     dim: int = 1024
-    batch_size: int = 25
+    batch_size: int = 10
     timeout: int = 60
 
 

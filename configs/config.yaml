@@ -33,7 +33,7 @@ embedding:
   api_key_ref: QWEN_API_KEY
   model: text-embedding-v3
   dim: 1024
-  batch_size: 25
+  batch_size: 10
   timeout: 60
 
 rag:

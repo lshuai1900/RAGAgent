@@ -40,7 +40,7 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
         model: str,
         dim: int,
         *,
-        batch_size: int = 25,
+        batch_size: int = 10,
         timeout: int = 60,
         api_key: str | None = None,
         http_client: httpx.AsyncClient | None = None,
@@ -52,7 +52,7 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
             api_key_ref: API Key 的环境变量名（如 QWEN_API_KEY）
             model: Embedding 模型标识（如 text-embedding-v3）
             dim: 向量维度
-            batch_size: 单次请求最大文本数（避免请求体过大）
+            batch_size: 单次请求最大文本数（DashScope 单批上限 10，默认 10）
             timeout: HTTP 超时（秒）
             api_key: 显式传入 API Key（测试用，优先于环境变量）
             http_client: 可注入的 httpx.AsyncClient（测试用，便于 Mock）
@@ -96,9 +96,11 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
         # 分批调用，避免单请求体过大
         for batch_start in range(0, len(texts), self._batch_size):
             batch = texts[batch_start : batch_start + self._batch_size]
+            # 仅发送 model / input / encoding_format，避免 DashScope 不兼容字段（dimensions/user 等）
             payload: dict[str, Any] = {
                 "model": self._model,
                 "input": batch,
+                "encoding_format": "float",
             }
 
             _logger.debug(
@@ -117,13 +119,18 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
                 )
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
+                # 异常信息必须包含响应体，便于定位 DashScope 4xx 原因（如 input 过长、字段不兼容）
+                body_text = exc.response.text
                 _logger.error(
                     "embedding_http_error",
                     status_code=exc.response.status_code,
-                    body=exc.response.text[:500],
+                    body=body_text[:500],
                 )
                 raise InfraException(
-                    message=f"Embedding API 调用失败 (HTTP {exc.response.status_code})",
+                    message=(
+                        f"Embedding API 调用失败 (HTTP {exc.response.status_code}): "
+                        f"响应体={body_text[:1000]}"
+                    ),
                     code=30010,
                     cause=exc,
                 ) from exc
