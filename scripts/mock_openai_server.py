@@ -6,7 +6,7 @@ Provides:
 """
 
 import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 def _fake_embedding(text: str, dim: int = 1024) -> list[float]:
@@ -30,8 +30,7 @@ class MockHandler(BaseHTTPRequestHandler):
                 inputs = [inputs]
             dim = 1024
             data = [
-                {"object": "embedding", "index": i, "embedding": _fake_embedding(t, dim)}
-                for i, t in enumerate(inputs)
+                {"object": "embedding", "index": i, "embedding": _fake_embedding(t, dim)} for i, t in enumerate(inputs)
             ]
             self._respond(200, {"object": "list", "data": data, "model": "mock", "usage": {"prompt_tokens": 1}})
 
@@ -40,12 +39,21 @@ class MockHandler(BaseHTTPRequestHandler):
             if stream:
                 self._respond_stream()
             else:
-                self._respond(200, {
-                    "id": "mock-chat",
-                    "object": "chat.completion",
-                    "model": "mock",
-                    "choices": [{"index": 0, "message": {"role": "assistant", "content": "这是Mock LLM的回答。"}, "finish_reason": "stop"}],
-                })
+                self._respond(
+                    200,
+                    {
+                        "id": "mock-chat",
+                        "object": "chat.completion",
+                        "model": "mock",
+                        "choices": [
+                            {
+                                "index": 0,
+                                "message": {"role": "assistant", "content": "这是Mock LLM的回答。"},
+                                "finish_reason": "stop",
+                            }
+                        ],
+                    },
+                )
 
         else:
             self._respond(404, {"error": "not found"})
@@ -70,7 +78,7 @@ class MockHandler(BaseHTTPRequestHandler):
                 "model": "mock",
                 "choices": [{"index": 0, "delta": {"content": chunk_text}, "finish_reason": None}],
             }
-            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
             self.wfile.flush()
         done_chunk = {
             "id": "mock-chat",
@@ -78,7 +86,7 @@ class MockHandler(BaseHTTPRequestHandler):
             "model": "mock",
             "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
         }
-        self.wfile.write(f"data: {json.dumps(done_chunk)}\n\n".encode("utf-8"))
+        self.wfile.write(f"data: {json.dumps(done_chunk)}\n\n".encode())
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 

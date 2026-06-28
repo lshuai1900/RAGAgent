@@ -36,7 +36,7 @@ make sync      # uv sync
 ### 3. 配置环境变量
 
 ```bash
-export QWEN_API_KEY=sk-xxx        # LLM / Embedding API Key（必需）
+export QWEN_API_KEY=your-qwen-api-key        # LLM / Embedding API Key（必需）
 export RAGENT__MILVUS__URI=http://localhost:19530   # 或 ./milvus_lite.db
 ```
 
@@ -165,7 +165,7 @@ uv run pytest tests/integration -v   # 集成测试（需 PG + Milvus）
 ```bash
 make deps-up      # docker compose up -d（PostgreSQL + Milvus）
 make sync         # uv sync
-export QWEN_API_KEY=sk-xxx
+export QWEN_API_KEY=your-qwen-api-key
 make migrate      # alembic upgrade head
 make dev          # uvicorn ragent.main:app --reload
 ```
@@ -243,3 +243,7 @@ src/ragent/
 ```
 
 详细设计见 `docs/`，规则约束见 `.trae/rules/`，协作指引见 `AGENTS.md`。
+
+## 开源仓库说明
+
+本仓库保留完整 MVP 源码、迁移、测试、配置模板和文档；不应提交本地运行数据、依赖安装目录、缓存、构建产物或真实密钥。使用 milvus-lite 时生成的 `milvus_lite.db/` 属于本地数据目录，请勿纳入版本管理。

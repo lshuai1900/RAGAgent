@@ -166,9 +166,8 @@ class Settings(BaseSettings):
             "your-embedding-api-key",
             "your-qwen-api-key",
             "your-openai-api-key",
-            "sk-your-api-key",
-            "sk-xxx",
-            "sk-xxxxxxxx",
+            "placeholder-api-key",
+            "example-api-key",
         }
 
     @classmethod

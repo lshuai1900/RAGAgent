@@ -85,11 +85,7 @@ class OpenAICompatibleEmbeddingClient(BaseEmbeddingClient):
                 body_text = exc.response.text
                 detail = self._extract_error_detail(body_text)
                 max_batch_size = self._extract_max_batch_size(detail)
-                if (
-                    exc.response.status_code == 400
-                    and max_batch_size is not None
-                    and 0 < max_batch_size < len(batch)
-                ):
+                if exc.response.status_code == 400 and max_batch_size is not None and 0 < max_batch_size < len(batch):
                     self._log_request_context(
                         "embedding_batch_size_retry",
                         level="warning",

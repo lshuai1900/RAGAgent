@@ -15,6 +15,18 @@ env/
 # uv
 .uv/
 
+# Frontend
+web/node_modules/
+web/dist/
+web/dist-ssr/
+web/.vite/
+web/*.local
+
+# Local runtime data
+milvus_lite.db/
+uploads/
+tmp/
+
 # IDE
 .idea/
 .vscode/
