@@ -64,22 +64,36 @@ async def _check_postgres() -> ComponentStatus:
 
 
 async def _check_milvus() -> ComponentStatus:
-    """探测 Milvus 连通性：TCP 端口检查（轻量，不建立 pymilvus 客户端）。"""
+    """探测 Milvus 连通性。
+
+    支持两种部署形态：
+    - 远程 standalone：URI 形如 http://host:19530，走 TCP 端口探测
+    - milvus-lite 本地文件：URI 形如 ./milvus.db，尝试创建客户端验证
+    """
     from urllib.parse import urlparse
 
     loop = asyncio.get_event_loop()
     settings = get_settings()
     uri = settings.milvus.uri
     parsed = urlparse(uri)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 19530
 
     started = loop.time()
     try:
-        _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=2.0)
-        writer.close()
-        with contextlib.suppress(Exception):
-            await writer.wait_closed()
+        if not parsed.scheme:
+            # milvus-lite 本地文件：创建客户端验证连通性
+            from pymilvus import AsyncMilvusClient
+
+            client = AsyncMilvusClient(uri=uri)
+            await asyncio.wait_for(client.list_collections(), timeout=2.0)
+            await client.close()
+        else:
+            # 远程 standalone：TCP 端口探测
+            host = parsed.hostname or "localhost"
+            port = parsed.port or 19530
+            _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=2.0)
+            writer.close()
+            with contextlib.suppress(Exception):
+                await writer.wait_closed()
         latency_ms = round((loop.time() - started) * 1000, 2)
         return ComponentStatus(status="ok", latency_ms=latency_ms)
     except Exception as exc:  # noqa: BLE001

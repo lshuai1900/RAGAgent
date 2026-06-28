@@ -20,9 +20,7 @@ class ChunkConfig:
 
     chunk_size: int = 512
     overlap: int = 64
-    separators: list[str] = field(
-        default_factory=lambda: ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""]
-    )
+    separators: list[str] = field(default_factory=lambda: ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""])
 
 
 @dataclass

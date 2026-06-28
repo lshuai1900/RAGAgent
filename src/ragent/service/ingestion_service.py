@@ -108,10 +108,7 @@ class IngestionService:
         file_type = self._extract_file_type(filename)
         if file_type not in _ALLOWED_FILE_TYPES:
             raise BizException(
-                message=(
-                    f"不支持的文件类型: {file_type}，仅支持 "
-                    f"{sorted(_ALLOWED_FILE_TYPES)}"
-                ),
+                message=(f"不支持的文件类型: {file_type}，仅支持 {sorted(_ALLOWED_FILE_TYPES)}"),
                 code=10201,
             )
 
@@ -243,9 +240,7 @@ class IngestionService:
         offset = (page - 1) * page_size
 
         if kb_id is not None:
-            items = await self._document_repo.list_by_kb(
-                kb_id, limit=page_size, offset=offset
-            )
+            items = await self._document_repo.list_by_kb(kb_id, limit=page_size, offset=offset)
             total = await self._document_repo.count_by_kb(kb_id)
         else:
             items = await self._document_repo.list_all(limit=page_size, offset=offset)
@@ -297,30 +292,22 @@ class IngestionService:
                 kb_repo = KnowledgeBaseRepository(session)
 
                 # 1. parsing
-                await doc_repo.update_status(
-                    document_id, DocumentStatus.PARSING.value
-                )
+                await doc_repo.update_status(document_id, DocumentStatus.PARSING.value)
                 await session.commit()
                 parsed = await self._pipeline.parse(path, file_type)
 
                 # 2. chunking
-                await doc_repo.update_status(
-                    document_id, DocumentStatus.CHUNKING.value
-                )
+                await doc_repo.update_status(document_id, DocumentStatus.CHUNKING.value)
                 await session.commit()
                 chunks = await self._pipeline.chunk(parsed, chunk_size, chunk_overlap)
 
                 # 3. embedding
-                await doc_repo.update_status(
-                    document_id, DocumentStatus.EMBEDDING.value
-                )
+                await doc_repo.update_status(document_id, DocumentStatus.EMBEDDING.value)
                 await session.commit()
                 vectors = await self._pipeline.embed(chunks)
 
                 # 4. indexing（写 PostgreSQL 元数据 + Milvus 向量）
-                await doc_repo.update_status(
-                    document_id, DocumentStatus.INDEXING.value
-                )
+                await doc_repo.update_status(document_id, DocumentStatus.INDEXING.value)
                 await session.commit()
 
                 # ensure collection（幂等，KB 创建时可能已建）
@@ -331,9 +318,7 @@ class IngestionService:
                         code=10404,
                     )
                 # 这里再次 ensure 防止 KB 创建时 Milvus 不可达
-                await self._pipeline.vector_store.ensure_collection(
-                    collection_name, kb.embedding_dim
-                )
+                await self._pipeline.vector_store.ensure_collection(collection_name, kb.embedding_dim)
 
                 indexed = await self._pipeline.index(
                     collection_name,
@@ -346,9 +331,7 @@ class IngestionService:
 
                 # 5. completed：更新分块数与 token 数
                 # ChunkDraft 无 token_count 字段，用 pipeline 内部估算逻辑累加
-                total_tokens = sum(
-                    IngestionPipeline._estimate_tokens(c.content) for c in chunks
-                )
+                total_tokens = sum(IngestionPipeline._estimate_tokens(c.content) for c in chunks)
                 await doc_repo.update_status(
                     document_id,
                     DocumentStatus.COMPLETED.value,

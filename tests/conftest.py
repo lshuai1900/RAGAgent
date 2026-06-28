@@ -27,11 +27,36 @@ def _is_reachable(host: str, port: int, timeout: float = 1.0) -> bool:
 
 
 def _milvus_reachable() -> bool:
-    """探测 Milvus 是否可达。"""
+    """探测 Milvus 是否可达。
+
+    支持两种部署形态：
+    - 远程 standalone：URI 形如 http://host:19530，走 TCP 探测
+    - milvus-lite 本地文件：URI 形如 ./milvus.db 或 milvus.db，尝试创建客户端验证
+    """
     from ragent.framework.core.config import get_settings
 
     uri = get_settings().milvus.uri
     parsed = urlparse(uri)
+    # 无 scheme（如 ./milvus.db 或 milvus.db）→ milvus-lite 本地文件
+    if not parsed.scheme:
+        try:
+            import asyncio
+
+            from pymilvus import AsyncMilvusClient
+
+            async def _probe() -> bool:
+                client = AsyncMilvusClient(uri=uri)
+                await client.list_collections()
+                await client.close()
+                return True
+
+            loop = asyncio.new_event_loop()
+            try:
+                return bool(loop.run_until_complete(_probe()))
+            finally:
+                loop.close()
+        except Exception:  # noqa: BLE001
+            return False
     host = parsed.hostname or "localhost"
     port = parsed.port or 19530
     return _is_reachable(host, port)
@@ -91,3 +116,16 @@ def qwen_api_key_set() -> bool:
     if not os.environ.get("QWEN_API_KEY"):
         pytest.skip("QWEN_API_KEY 未设置，跳过真实 Embedding 集成测试")
     return True
+
+
+def is_milvus_lite() -> bool:
+    """检测当前 Milvus 部署是否为 milvus-lite（本地文件模式）。
+
+    milvus-lite 不支持 create_index（gRPC UNIMPLEMENTED），
+    search 返回 L2 距离（升序）而非 COSINE 相似度（降序）。
+    """
+    from ragent.framework.core.config import get_settings
+
+    uri = get_settings().milvus.uri
+    parsed = urlparse(uri)
+    return not parsed.scheme

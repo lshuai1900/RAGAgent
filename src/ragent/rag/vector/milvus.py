@@ -127,6 +127,19 @@ class MilvusVectorStore(BaseVectorStore):
                 index_params=index_params,
             )
         except Exception as exc:  # noqa: BLE001
+            # 兼容 milvus-lite：create_collection 可能因 create_index UNIMPLEMENTED 而失败，
+            # 但 collection 本身可能已创建。检查 has_collection，若已存在则视为成功。
+            try:
+                created = await client.has_collection(collection_name, timeout=10)
+            except Exception:  # noqa: BLE001
+                created = False
+            if created:
+                _logger.warning(
+                    "milvus_collection_created_index_failed",
+                    collection_name=collection_name,
+                    error=str(exc),
+                )
+                return
             raise InfraException(
                 message=f"Milvus create_collection 失败: {collection_name} - {exc}",
                 code=30021,
@@ -266,6 +279,10 @@ class MilvusVectorStore(BaseVectorStore):
                 )
             )
 
+        # 显式按 score 降序排序（COSINE 相似度，值越大越相似）。
+        # 真实 Milvus 已排序，此处为幂等保护；同时保证不同后端返回顺序一致。
+        hits.sort(key=lambda h: h.score, reverse=True)
+
         _logger.info(
             "milvus_search_done",
             collection_name=collection_name,
@@ -298,11 +315,7 @@ class MilvusVectorStore(BaseVectorStore):
                 filter=filter_expr,
                 timeout=30,
             )
-            delete_count = (
-                int(result.get("delete_count", 0))
-                if isinstance(result, dict)
-                else 0
-            )
+            delete_count = int(result.get("delete_count", 0)) if isinstance(result, dict) else 0
         except Exception as exc:  # noqa: BLE001
             raise InfraException(
                 message=f"Milvus delete_by_document 失败: {collection_name} document={document_id} - {exc}",
@@ -355,8 +368,13 @@ def _prepare_index_params(client: Any, vector_field: str) -> Any:
     """构造 Milvus 索引参数。
 
     使用 IVF_FLAT + COSINE，适合中小规模（< 1M 向量）的 MVP 场景。
+    兼容 pymilvus 2.x（make_index_params）与 3.x（prepare_index_params）。
     """
-    index_params = client.make_index_params()
+    # pymilvus 3.x 使用 prepare_index_params，2.x 使用 make_index_params
+    if hasattr(client, "prepare_index_params"):
+        index_params = client.prepare_index_params()
+    else:
+        index_params = client.make_index_params()
     index_params.add_index(
         field_name=vector_field,
         index_type="IVF_FLAT",

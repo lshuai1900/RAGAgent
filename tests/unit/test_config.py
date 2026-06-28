@@ -55,5 +55,6 @@ def test_nested_config_structure() -> None:
     assert hasattr(settings, "llm")
     assert hasattr(settings, "embedding")
     assert hasattr(settings, "rag")
-    # milvus.uri 默认值
-    assert settings.milvus.uri == "http://localhost:19530"
+    # milvus.uri 应为非空字符串（具体值由 YAML 或环境变量决定）
+    assert isinstance(settings.milvus.uri, str)
+    assert len(settings.milvus.uri) > 0

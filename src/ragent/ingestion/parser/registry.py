@@ -59,10 +59,7 @@ class ParserRegistry:
         if parser is None:
             supported = sorted(self._parsers.keys())
             raise BizException(
-                message=(
-                    f"不支持的文件类型: {file_type}，"
-                    f"当前支持的类型: {supported}"
-                ),
+                message=(f"不支持的文件类型: {file_type}，当前支持的类型: {supported}"),
                 code=10101,
             )
         return parser
