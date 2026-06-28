@@ -703,4 +703,51 @@ onBeforeUnmount(() => {
   color: var(--app-text-secondary);
   font-size: 12px;
 }
+
+/* =========================================================
+ * 知识库工作台内（检索测试 Tab）轻量视觉统一
+ * - 图标 / 头像跟随蓝绿色主色
+ * - 卡片边框更轻（使用 --kb-border）
+ * - 不改 SSE / API / store 逻辑
+ * ========================================================= */
+:global(.kb-workspace) .chat-sse-panel__icon {
+  color: var(--kb-primary);
+}
+
+:global(.kb-workspace) .chat-sse-panel__desc {
+  color: var(--kb-text-secondary);
+}
+
+:global(.kb-workspace) .chat-msg__avatar {
+  background-color: var(--kb-primary-bg);
+  color: var(--kb-primary);
+}
+
+:global(.kb-workspace) .chat-msg--assistant .chat-msg__avatar {
+  background-color: var(--kb-status-success-bg);
+  color: var(--kb-status-success);
+}
+
+:global(.kb-workspace) .chat-sse-panel__input-card,
+:global(.kb-workspace) .chat-sse-panel__answer-card,
+:global(.kb-workspace) .chat-sse-panel__trace-card {
+  border-color: var(--kb-border);
+  border-radius: var(--kb-radius);
+}
+
+:global(.kb-workspace) .chat-sse-panel__hint {
+  color: var(--kb-text-tertiary);
+}
+
+:global(.kb-workspace) .chat-msg__meta {
+  color: var(--kb-text-tertiary);
+}
+
+:global(.kb-workspace) .chat-msg__content {
+  color: var(--kb-text);
+}
+
+:global(.kb-workspace) .chat-msg__thinking {
+  color: var(--kb-text-tertiary);
+}
 </style>

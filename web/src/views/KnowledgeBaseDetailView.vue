@@ -1,47 +1,34 @@
 <script setup lang="ts">
 /**
- * 知识库详情页（P1.3 + P1.4-A + P1.4-B）
- * - 顶部展示知识库基本信息（名称/描述/状态/向量维度/集合名称/文档数量/创建时间）
- * - 标签页：文件管理（真实功能）/ 检索测试（真实 SSE）/ 聊天问答（真实 SSE）/ 配置（占位）
- * - 文件管理：状态统计 + 上传 + 文档表格 + 状态轮询
- * - 检索测试：复用 POST /api/v1/chat/sse，左右分栏展示回答与引用来源
- * - 聊天问答：POST /api/v1/chat/sse 流式输出（fetch + ReadableStream）
- * - 标签页切换同步 route.query.tab
+ * 知识库详情页（P1.6 / Yuxi 风格重构）
+ *
+ * - 沉浸式布局：route.meta.immersive = true，隐藏全局左侧菜单与顶部标题栏
+ * - 顶部 Header：返回 / 知识库图标 / 名称 / 副标题（RAG 知识库 · N 文件）/ 刷新
+ * - 横向 Tab：文件管理 / 检索测试 / 知识图谱 / 知识导图 / RAG 评估 / 评估基准
+ *   - 文件管理：真实功能（上传 + 搜索 + 行列表 + 状态轮询）
+ *   - 检索测试：真实 SSE 流式问答
+ *   - 其余 Tab：规划中，点击提示"该能力将在后续版本实现"
+ * - Tab 切换同步 route.query.tab
  */
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import {
-  Card,
-  Tag,
-  Button,
-  Spin,
-  Empty,
-  Alert,
-  Tabs,
-  TabPane,
-  Descriptions,
-  DescriptionsItem,
-  message,
-} from 'ant-design-vue'
-import { ArrowLeft, RefreshCw, Upload } from 'lucide-vue-next'
+import { Spin, Alert, Empty, message } from 'ant-design-vue'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { useDocumentStore } from '@/stores/document'
 import { useChatStore } from '@/stores/chat'
-import { formatApiError } from '@/api/client'
-import {
-  knowledgeBaseStatusText,
-  knowledgeBaseStatusColor,
-  formatTime,
-} from '@/utils/format'
-import DocumentStatusCards from '@/components/DocumentStatusCards.vue'
-import DocumentTable from '@/components/DocumentTable.vue'
-import DocumentUploadModal from '@/components/DocumentUploadModal.vue'
-import ChatSsePanel from '@/components/ChatSsePanel.vue'
+import KnowledgeBaseDetailHeader from '@/components/KnowledgeBaseDetailHeader.vue'
+import KnowledgeBaseTabs from '@/components/KnowledgeBaseTabs.vue'
+import FileManagerPanel from '@/components/FileManagerPanel.vue'
 import SearchTestPanel from '@/components/SearchTestPanel.vue'
+import DocumentUploadModal from '@/components/DocumentUploadModal.vue'
 
-type TabKey = 'documents' | 'retrieve' | 'chat' | 'config'
-const VALID_TABS: TabKey[] = ['documents', 'retrieve', 'chat', 'config']
+/** 详情页可用 Tab（仅文件管理 / 检索测试为真实功能，其余为规划态） */
+type TabKey = 'documents' | 'retrieve'
+const VALID_TABS: TabKey[] = ['documents', 'retrieve']
+
+/** 规划中 Tab key（点击仅提示，不切换） */
+const PLANNED_TABS = new Set(['graph', 'mindmap', 'eval', 'benchmark'])
 
 const route = useRoute()
 const router = useRouter()
@@ -53,7 +40,7 @@ const { list: docList, listState: docListState, listError: docListError } = stor
 
 const kbId = computed(() => String(route.params.kbId ?? ''))
 
-/** 从 route.query.tab 初始化标签页 */
+/** 从 route.query.tab 初始化标签页（仅接受真实功能 Tab） */
 function readTabFromQuery(): TabKey {
   const t = route.query.tab
   if (typeof t === 'string' && VALID_TABS.includes(t as TabKey)) {
@@ -64,24 +51,32 @@ function readTabFromQuery(): TabKey {
 
 const activeTab = ref<TabKey>(readTabFromQuery())
 const uploadModalOpen = ref<boolean>(false)
-const refreshingDocId = ref<string>('')
 
 const isKbLoading = computed(() => detailState.value === 'loading')
 const isKbError = computed(() => detailState.value === 'error' && !isKbLoading.value)
 const isDocLoading = computed(() => docListState.value === 'loading')
 const isDocError = computed(() => docListState.value === 'error' && !isDocLoading.value)
 
-/** 切换标签页时同步 URL query（replace 避免历史污染） */
-function handleTabChange(key: string | number): void {
-  const tab = String(key) as TabKey
-  // 切换进入/离开聊天或检索标签页时重置聊天 store，避免跨标签页消息串扰
-  if (tab === 'chat' || tab === 'retrieve' || activeTab.value === 'chat' || activeTab.value === 'retrieve') {
-    if (tab !== activeTab.value) {
-      chatStore.reset()
-    }
+/** Header 展示的知识库名称（加载中兜底） */
+const headerName = computed(() => detail.value?.name ?? '知识库')
+
+/** Header 副标题文件数：优先后端 document_count，缺失时用当前文档列表数量 */
+const documentCount = computed(() => {
+  const cnt = detail.value?.document_count
+  if (typeof cnt === 'number' && cnt >= 0) return cnt
+  return docList.value.length
+})
+
+/** Tab 切换处理：规划中 Tab 仅提示，不切换 */
+function handleTabSelect(key: string): void {
+  if (PLANNED_TABS.has(key)) {
+    message.info('该能力将在后续版本实现')
   }
-  activeTab.value = tab
-  router.replace({ query: { ...route.query, tab } })
+}
+
+/** 真实 Tab 切换：更新 activeTab（ KnowledgeBaseTabs 仅对非规划 Tab 触发） */
+function handleTabUpdate(key: string): void {
+  activeTab.value = key as TabKey
 }
 
 function goBack(): void {
@@ -104,17 +99,18 @@ function openUpload(): void {
   uploadModalOpen.value = true
 }
 
-/** 操作列：刷新单个文档状态 */
-async function handleRefreshStatus(documentId: string): Promise<void> {
-  refreshingDocId.value = documentId
-  try {
-    await docStore.refreshDocument(documentId)
-  } catch (err) {
-    message.error(formatApiError(err))
-  } finally {
-    refreshingDocId.value = ''
-  }
-}
+/** activeTab 变化：同步 URL query，并在进出检索测试时重置聊天 store */
+watch(
+  activeTab,
+  (newTab, oldTab) => {
+    if (newTab !== oldTab && (newTab === 'retrieve' || oldTab === 'retrieve')) {
+      chatStore.reset()
+    }
+    if (newTab !== oldTab) {
+      router.replace({ query: { ...route.query, tab: newTab } })
+    }
+  },
+)
 
 /** 切换知识库时重置并重新加载 */
 watch(
@@ -146,199 +142,104 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="kb-detail">
-    <!-- 顶部：返回 + 刷新 -->
-    <div class="kb-detail__topbar">
-      <Button type="text" class="kb-detail__back" @click="goBack">
-        <template #icon><ArrowLeft :size="16" /></template>
-        返回知识库
-      </Button>
-      <Button :loading="isKbLoading" size="small" @click="refreshKb">
-        <template #icon><RefreshCw :size="14" /></template>
-        刷新
-      </Button>
-    </div>
-
-    <!-- 知识库信息加载中 -->
-    <div v-if="isKbLoading" class="kb-detail__loading">
-      <Spin tip="加载中…" size="large" />
-    </div>
-
-    <!-- 知识库信息错误 -->
-    <Alert
-      v-else-if="isKbError"
-      type="error"
-      show-icon
-      :message="detailError || '加载知识库详情失败'"
+  <div class="kb-workspace">
+    <!-- 顶部 Header -->
+    <KnowledgeBaseDetailHeader
+      :name="headerName"
+      :document-count="documentCount"
+      :loading="isKbLoading"
+      @back="goBack"
+      @refresh="refreshKb"
     />
 
-    <!-- 基本信息 -->
-    <Card v-else-if="detail" class="kb-detail__info" :bordered="true">
-      <template #title>
-        <div class="kb-detail__info-title">
-          <span>{{ detail.name }}</span>
-          <Tag :color="knowledgeBaseStatusColor(detail.status)">
-            {{ knowledgeBaseStatusText(detail.status) }}
-          </Tag>
+    <!-- 横向 Tab 导航 -->
+    <KnowledgeBaseTabs
+      :model-value="activeTab"
+      @update:model-value="handleTabUpdate"
+      @select="handleTabSelect"
+    />
+
+    <!-- 主体 -->
+    <div class="kb-workspace__body">
+      <!-- 知识库信息错误 -->
+      <Alert
+        v-if="isKbError"
+        type="error"
+        show-icon
+        :message="detailError || '加载知识库详情失败'"
+        class="kb-workspace__alert"
+      />
+
+      <!-- 知识库信息加载中（首次加载，详情尚未就绪） -->
+      <div v-else-if="isKbLoading && !detail" class="kb-workspace__loading">
+        <Spin tip="加载中…" size="large" />
+      </div>
+
+      <template v-else>
+        <!-- 文件管理（真实功能） -->
+        <FileManagerPanel
+          v-if="activeTab === 'documents'"
+          :documents="docList"
+          :loading="isDocLoading"
+          :error="isDocError ? (docListError || '加载文档列表失败') : ''"
+          @upload="openUpload"
+          @refresh="refreshDocs"
+        />
+
+        <!-- 检索测试（真实 SSE 流式问答） -->
+        <SearchTestPanel
+          v-else-if="activeTab === 'retrieve'"
+          :kb-id="kbId"
+          :kb-name="detail?.name"
+        />
+
+        <!-- 兜底空态（规划中 Tab 不会切换到此） -->
+        <div v-else class="kb-workspace__placeholder">
+          <Empty description="该能力将在后续版本实现" />
         </div>
       </template>
-
-      <Descriptions :column="2" size="small" bordered :label-style="{ width: '120px' }">
-        <DescriptionsItem label="描述">{{ detail.description || '暂无描述' }}</DescriptionsItem>
-        <DescriptionsItem label="状态">
-          <Tag :color="knowledgeBaseStatusColor(detail.status)">
-            {{ knowledgeBaseStatusText(detail.status) }}
-          </Tag>
-        </DescriptionsItem>
-        <DescriptionsItem label="向量维度">{{ detail.embedding_dim }}</DescriptionsItem>
-        <DescriptionsItem label="集合名称">
-          <span class="kb-detail__mono">{{ detail.collection_name }}</span>
-        </DescriptionsItem>
-        <DescriptionsItem label="文档数量">{{ detail.document_count }}</DescriptionsItem>
-        <DescriptionsItem label="创建时间">{{ formatTime(detail.created_at) }}</DescriptionsItem>
-      </Descriptions>
-    </Card>
-
-    <!-- 标签页 -->
-    <Card
-      v-if="!isKbLoading && !isKbError && detail"
-      class="kb-detail__tabs"
-      :bordered="true"
-      :body-style="{ padding: '0' }"
-    >
-      <Tabs v-model:active-key="activeTab" class="kb-detail__tabs-inner" @change="handleTabChange">
-        <!-- 文件管理（真实功能） -->
-        <TabPane key="documents" tab="文件管理">
-          <div class="kb-detail__tab-content">
-            <!-- 状态统计卡片 -->
-            <DocumentStatusCards :documents="docList" />
-
-            <!-- 顶部操作区 -->
-            <div class="kb-detail__doc-actions">
-              <Button type="primary" @click="openUpload">
-                <template #icon><Upload :size="14" /></template>
-                上传文档
-              </Button>
-              <Button :loading="isDocLoading" @click="refreshDocs">
-                <template #icon><RefreshCw :size="14" /></template>
-                刷新列表
-              </Button>
-            </div>
-
-            <!-- 文档列表错误提示 -->
-            <Alert
-              v-if="isDocError"
-              type="error"
-              show-icon
-              :message="docListError || '加载文档列表失败'"
-              class="kb-detail__doc-alert"
-            />
-
-            <!-- 文档表格 -->
-            <DocumentTable
-              :documents="docList"
-              :loading="isDocLoading"
-              :refreshing-id="refreshingDocId"
-              @refresh-status="handleRefreshStatus"
-            />
-          </div>
-        </TabPane>
-
-        <!-- 检索测试（P1.4-B：复用 SSE 流式问答，展示回答与引用来源） -->
-        <TabPane key="retrieve" tab="检索测试">
-          <div class="kb-detail__tab-content">
-            <SearchTestPanel :kb-id="kbId" :kb-name="detail?.name" />
-          </div>
-        </TabPane>
-
-        <!-- 聊天问答（真实 SSE 流式问答，P1.4-A） -->
-        <TabPane key="chat" tab="聊天问答">
-          <div class="kb-detail__tab-content">
-            <ChatSsePanel :kb-id="kbId" :kb-name="detail?.name" />
-          </div>
-        </TabPane>
-
-        <!-- 配置（占位） -->
-        <TabPane key="config" tab="配置">
-          <div class="kb-detail__placeholder">
-            <Empty description="配置能力将在后续实现" />
-          </div>
-        </TabPane>
-      </Tabs>
-    </Card>
+    </div>
 
     <!-- 上传文档弹窗 -->
-    <DocumentUploadModal
-      v-model:open="uploadModalOpen"
-      :kb-id="kbId"
-    />
+    <DocumentUploadModal v-model:open="uploadModalOpen" :kb-id="kbId" />
   </div>
 </template>
 
 <style scoped>
-.kb-detail {
-  max-width: 1200px;
+.kb-workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--kb-bg);
+  color: var(--kb-text);
+}
+
+.kb-workspace__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 32px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
 }
 
-.kb-detail__topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.kb-workspace__alert {
+  margin-bottom: 0;
 }
 
-.kb-detail__back {
-  padding: 0 4px;
-}
-
-.kb-detail__loading {
+.kb-workspace__loading {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 80px 0;
 }
 
-.kb-detail__info,
-.kb-detail__tabs {
-  border-radius: var(--app-radius);
-}
-
-.kb-detail__info-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
-}
-
-.kb-detail__mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
-  color: var(--app-text-secondary);
-}
-
-.kb-detail__tabs-inner {
-  padding: 0 24px;
-}
-
-.kb-detail__tab-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 4px 0 24px;
-}
-
-.kb-detail__doc-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.kb-detail__doc-alert {
-  margin-bottom: 0;
-}
-
-.kb-detail__placeholder {
+.kb-workspace__placeholder {
   display: flex;
   align-items: center;
   justify-content: center;

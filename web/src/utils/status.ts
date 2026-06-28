@@ -126,3 +126,40 @@ export function fileTypeText(fileType: string): string {
   if (ft === 'pdf') return 'PDF'
   return fileType ? fileType.toUpperCase() : '-'
 }
+
+// ===== P1.6 知识库工作台（Yuxi 风格）文件列表状态徽标 =====
+// 用于文件管理页行内状态展示，文案与 .trae/rules/frontend-ui.mdc 的表格不同：
+// 这里采用更贴近 Yuxi 的工作台文案（已入库 / 处理中 / 等待处理 / 处理失败）。
+// 原有 documentStatusText（待处理 / 解析中 / ... / 已完成 / 失败）保留不变，供其它场景使用。
+
+/** 文档状态 → 工作台徽标中文文案 */
+export function documentStatusBadgeText(status: string): string {
+  const cat = documentStatusCategory(status)
+  switch (cat) {
+    case 'pending':
+      return '等待处理'
+    case 'processing':
+      return '处理中'
+    case 'completed':
+      return '已入库'
+    case 'failed':
+      return '处理失败'
+  }
+}
+
+/** 文档状态 → 工作台徽标语义类别（用于图标与配色） */
+export type StatusBadgeKind = 'success' | 'error' | 'processing' | 'pending'
+
+/** 文档状态 → 工作台徽标语义 */
+export function documentStatusBadgeKind(status: string): StatusBadgeKind {
+  switch (documentStatusCategory(status)) {
+    case 'completed':
+      return 'success'
+    case 'failed':
+      return 'error'
+    case 'processing':
+      return 'processing'
+    case 'pending':
+      return 'pending'
+  }
+}
