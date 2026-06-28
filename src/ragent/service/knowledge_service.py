@@ -22,14 +22,20 @@ from ragent.persistence.repositories.knowledge_base_repo import KnowledgeBaseRep
 from ragent.rag.vector.base import BaseVectorStore
 from ragent.schemas.knowledge_base import (
     KnowledgeBaseCreate,
+    KnowledgeBaseDeleteResponse,
     KnowledgeBaseOut,
     KnowledgeBasePage,
+    KnowledgeBaseUpdate,
 )
 
 _logger = get_logger(__name__)
 
 # Milvus collection 名前缀 + 长度限制（必须以字母开头，仅含字母数字下划线）
 _COLLECTION_PREFIX = "kb_"
+
+# 知识库不存在错误码（HTTP 404）
+_KB_NOT_FOUND_CODE = 10404
+_KB_NOT_FOUND_HTTP_STATUS = 404
 
 
 class KnowledgeService:
@@ -180,6 +186,124 @@ class KnowledgeService:
             total=total,
             page=page,
             page_size=page_size,
+        )
+
+    async def update_knowledge_base(
+        self,
+        kb_id: str,
+        payload: KnowledgeBaseUpdate,
+    ) -> KnowledgeBaseOut:
+        """更新知识库（重命名 / 描述 / 状态）。
+
+        部分更新语义：仅传入的字段会被修改。
+
+        流程：
+        1. 校验知识库存在（不存在返回 404）
+        2. 名称变更时校验唯一性（与其他知识库重名则拒绝）
+        3. 写 PostgreSQL
+        4. 返回更新后的知识库
+
+        Args:
+            kb_id: 知识库 ID
+            payload: 更新请求（name / description / status，均可选）
+
+        Returns:
+            KnowledgeBaseOut 响应
+
+        Raises:
+            BizException: 知识库不存在（404）/ 名称已存在（400）
+        """
+        kb = await self._kb_repo.get_by_id(kb_id)
+        if kb is None:
+            raise BizException(
+                message=f"知识库不存在: {kb_id}",
+                code=_KB_NOT_FOUND_CODE,
+                http_status=_KB_NOT_FOUND_HTTP_STATUS,
+            )
+
+        # 名称变更：校验唯一性
+        if payload.name is not None and payload.name != kb.name:
+            existing = await self._kb_repo.get_by_name(payload.name)
+            if existing is not None and existing.id != kb_id:
+                raise BizException(
+                    message=f"知识库名称已存在: {payload.name}",
+                    code=10101,
+                )
+            kb.name = payload.name
+
+        if payload.description is not None:
+            kb.description = payload.description
+
+        if payload.status is not None:
+            kb.status = payload.status.value
+
+        await self._kb_repo.session.flush()
+        await self._kb_repo.session.commit()
+        await self._kb_repo.session.refresh(kb)
+
+        _logger.info(
+            "knowledge_base_updated",
+            kb_id=kb_id,
+            name=kb.name,
+        )
+        return KnowledgeBaseOut.model_validate(kb)
+
+    async def delete_knowledge_base(self, kb_id: str) -> KnowledgeBaseDeleteResponse:
+        """删除知识库（软删除：归档 + 尝试删除向量库 collection）。
+
+        流程：
+        1. 校验知识库存在（不存在返回 404）
+        2. 软删除：status → archived，提交 PostgreSQL
+        3. 尝试删除 Milvus collection（失败仅记录日志，不回滚 DB）
+        4. 返回删除响应
+
+        Args:
+            kb_id: 知识库 ID
+
+        Returns:
+            KnowledgeBaseDeleteResponse 响应
+
+        Raises:
+            BizException: 知识库不存在（404）
+        """
+        kb = await self._kb_repo.get_by_id(kb_id)
+        if kb is None:
+            raise BizException(
+                message=f"知识库不存在: {kb_id}",
+                code=_KB_NOT_FOUND_CODE,
+                http_status=_KB_NOT_FOUND_HTTP_STATUS,
+            )
+
+        collection_name = kb.collection_name
+        kb_name = kb.name
+
+        # 1. 软删除（归档）：先提交 DB，确保即使后续 collection 删除失败也不回滚
+        kb.status = KnowledgeBaseStatus.ARCHIVED.value
+        await self._kb_repo.session.flush()
+        await self._kb_repo.session.commit()
+
+        _logger.info(
+            "knowledge_base_archived",
+            kb_id=kb_id,
+            name=kb_name,
+            collection_name=collection_name,
+        )
+
+        # 2. 尝试删除 Milvus collection（失败仅记录日志，不影响已归档状态）
+        try:
+            await self._vector_store.drop_collection(collection_name)
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning(
+                "milvus_drop_collection_failed_on_kb_delete",
+                kb_id=kb_id,
+                collection_name=collection_name,
+                error=str(exc),
+            )
+
+        return KnowledgeBaseDeleteResponse(
+            id=kb_id,
+            status=KnowledgeBaseStatus.ARCHIVED.value,
+            collection_name=collection_name,
         )
 
 

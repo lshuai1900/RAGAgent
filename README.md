@@ -75,7 +75,18 @@ curl "http://localhost:8000/api/v1/knowledge-bases?page=1&page_size=10"
 
 # 查询知识库
 curl http://localhost:8000/api/v1/knowledge-bases/{kb_id}
+
+# 编辑知识库（重命名 / 修改描述 / 修改状态，部分更新）
+curl -X PATCH http://localhost:8000/api/v1/knowledge-bases/{kb_id} \
+  -H "Content-Type: application/json" \
+  -d '{"name":"new-kb-name","description":"updated description"}'
+
+# 删除知识库（软删除：归档 + 尝试清理向量库 collection）
+curl -X DELETE http://localhost:8000/api/v1/knowledge-bases/{kb_id}
 ```
+
+- `PATCH` 支持部分更新：仅传入的字段（`name` / `description` / `status`）会被修改；名称变更时会校验唯一性，重名返回 `code=10101`，知识库不存在返回 `404`（`code=10404`）。
+- `DELETE` 为软删除：将知识库状态置为 `archived`，列表与详情接口不再返回；同时尝试删除对应 Milvus collection，删除失败仅记录日志、不回滚数据库。
 
 ### 文档摄取
 
@@ -224,7 +235,7 @@ npm run dev
 - 知识图谱 / RAG 评估 / 对话标题自动生成
 - 会话列表 / 历史会话管理 / 多轮复杂会话切换
 - 管理后台（除知识库 / 文档 CRUD 外）
-- 文档删除 / 重新摄取 / 知识库编辑删除（后端无接口）
+- 文档删除 / 重新摄取（后端无接口）
 - 暗色主题 / 国际化（i18n）/ 移动端适配
 
 ## 项目结构

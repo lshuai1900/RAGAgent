@@ -355,6 +355,158 @@ async def test_get_kb_not_found_raises(
     assert body["code"] == 10404
 
 
+# ---------- KB Update / Delete API ----------
+
+
+@pytest.mark.asyncio
+async def test_update_knowledge_base_rename(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """PATCH /api/v1/knowledge-bases/{kb_id} 重命名 + 修改描述。"""
+    client, resources = app_client
+    kb_id = await _create_kb(client, resources)
+
+    resp = await client.patch(
+        f"/api/v1/knowledge-bases/{kb_id}",
+        json={"name": f"renamed-{uuid.uuid4().hex[:8]}", "description": "updated desc"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == 0
+    data = body["data"]
+    assert data["id"] == kb_id
+    assert data["name"].startswith("renamed-")
+    assert data["description"] == "updated desc"
+    assert data["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_update_kb_duplicate_name_raises(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """重命名为已有名称：返回 BizException code=10101。"""
+    client, resources = app_client
+    kb_id_a = await _create_kb(client, resources)
+    kb_id_b = await _create_kb(client, resources)
+    name_b = (await client.get(f"/api/v1/knowledge-bases/{kb_id_b}")).json()["data"]["name"]
+
+    resp = await client.patch(
+        f"/api/v1/knowledge-bases/{kb_id_a}",
+        json={"name": name_b},
+    )
+
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["code"] == 10101
+
+
+@pytest.mark.asyncio
+async def test_update_kb_not_found_raises(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """更新不存在的 KB：返回 404 + code=10404。"""
+    client, _ = app_client
+
+    resp = await client.patch(
+        "/api/v1/knowledge-bases/non-existent-kb-id",
+        json={"name": "whatever"},
+    )
+
+    assert resp.status_code == 404
+    body = resp.json()
+    assert body["code"] == 10404
+
+
+@pytest.mark.asyncio
+async def test_update_kb_empty_name_rejected(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """重命名为空字符串：Pydantic 校验失败 422。"""
+    client, resources = app_client
+    kb_id = await _create_kb(client, resources)
+
+    resp = await client.patch(
+        f"/api/v1/knowledge-bases/{kb_id}",
+        json={"name": "   "},
+    )
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_delete_knowledge_base(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """DELETE /api/v1/knowledge-bases/{kb_id} 软删除 + 清理 collection。"""
+    client, resources = app_client
+    kb_id = await _create_kb(client, resources)
+    kb_detail = (await client.get(f"/api/v1/knowledge-bases/{kb_id}")).json()["data"]
+    collection_name = kb_detail["collection_name"]
+
+    resp = await client.delete(f"/api/v1/knowledge-bases/{kb_id}")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == 0
+    assert body["data"]["id"] == kb_id
+    assert body["data"]["status"] == "archived"
+    assert body["data"]["collection_name"] == collection_name
+
+    # 验证 Milvus collection 已被删除
+    vector_store: MilvusVectorStore = resources["vector_store"]
+    client_milvus = await vector_store._get_client()
+    has_coll = await client_milvus.has_collection(collection_name, timeout=10)
+    assert has_coll is False
+
+
+@pytest.mark.asyncio
+async def test_delete_kb_not_found_raises(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """删除不存在的 KB：返回 404 + code=10404。"""
+    client, _ = app_client
+
+    resp = await client.delete("/api/v1/knowledge-bases/non-existent-kb-id")
+
+    assert resp.status_code == 404
+    body = resp.json()
+    assert body["code"] == 10404
+
+
+@pytest.mark.asyncio
+async def test_deleted_kb_excluded_from_list(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """删除后的知识库不再出现在列表中。"""
+    client, resources = app_client
+    kb_id = await _create_kb(client, resources)
+
+    delete_resp = await client.delete(f"/api/v1/knowledge-bases/{kb_id}")
+    assert delete_resp.status_code == 200
+
+    list_resp = await client.get("/api/v1/knowledge-bases?page=1&page_size=100")
+    assert list_resp.status_code == 200
+    ids = [item["id"] for item in list_resp.json()["data"]["items"]]
+    assert kb_id not in ids
+
+
+@pytest.mark.asyncio
+async def test_deleted_kb_detail_not_found(
+    app_client: tuple[httpx.AsyncClient, dict[str, Any]],
+) -> None:
+    """删除后的知识库详情查询返回 code=10404（archived 被过滤）。"""
+    client, resources = app_client
+    kb_id = await _create_kb(client, resources)
+
+    delete_resp = await client.delete(f"/api/v1/knowledge-bases/{kb_id}")
+    assert delete_resp.status_code == 200
+
+    detail_resp = await client.get(f"/api/v1/knowledge-bases/{kb_id}")
+    assert detail_resp.status_code == 400
+    assert detail_resp.json()["code"] == 10404
+
+
 # ---------- Document Upload API ----------
 
 
