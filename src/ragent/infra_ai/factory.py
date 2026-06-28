@@ -25,6 +25,7 @@ def build_embedding_client(
     dim: int | None = None,
     batch_size: int | None = None,
     timeout: int | None = None,
+    send_dimensions: bool | None = None,
     api_key: str | None = None,
 ) -> BaseEmbeddingClient:
     """按配置构建 Embedding 客户端。
@@ -53,6 +54,7 @@ def build_embedding_client(
         dim=dim or emb_cfg.dim,
         batch_size=batch_size or emb_cfg.batch_size,
         timeout=timeout or emb_cfg.timeout,
+        send_dimensions=emb_cfg.send_dimensions if send_dimensions is None else send_dimensions,
         api_key=api_key,
     )
     _logger.info(
@@ -60,6 +62,8 @@ def build_embedding_client(
         model=client.model_name(),
         dim=client.dim(),
         base_url=base_url or emb_cfg.base_url,
+        batch_size=batch_size or emb_cfg.batch_size,
+        send_dimensions=emb_cfg.send_dimensions if send_dimensions is None else send_dimensions,
     )
     return client
 

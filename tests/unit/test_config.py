@@ -45,6 +45,38 @@ def test_env_var_overrides_yaml() -> None:
         os.environ.pop("RAGENT__DB__POOL_SIZE", None)
 
 
+def test_plain_embedding_env_vars_override_yaml() -> None:
+    """兼容直接使用 EMBEDDING_* 环境变量配置 OpenAI-compatible embedding 服务。"""
+    os.environ["EMBEDDING_BASE_URL"] = "https://embedding.example.com/v1"
+    os.environ["EMBEDDING_API_KEY"] = "test-key"
+    os.environ["EMBEDDING_MODEL"] = "custom-embedding"
+    os.environ["EMBEDDING_DIMENSION"] = "768"
+    os.environ["EMBEDDING_BATCH_SIZE"] = "16"
+    os.environ["EMBEDDING_TIMEOUT"] = "30"
+    os.environ["EMBEDDING_SEND_DIMENSIONS"] = "true"
+    try:
+        reload_settings()
+        settings = get_settings()
+        assert settings.embedding.base_url == "https://embedding.example.com/v1"
+        assert settings.embedding.api_key_ref == "EMBEDDING_API_KEY"
+        assert settings.embedding.model == "custom-embedding"
+        assert settings.embedding.dim == 768
+        assert settings.embedding.batch_size == 16
+        assert settings.embedding.timeout == 30
+        assert settings.embedding.send_dimensions is True
+    finally:
+        for key in (
+            "EMBEDDING_BASE_URL",
+            "EMBEDDING_API_KEY",
+            "EMBEDDING_MODEL",
+            "EMBEDDING_DIMENSION",
+            "EMBEDDING_BATCH_SIZE",
+            "EMBEDDING_TIMEOUT",
+            "EMBEDDING_SEND_DIMENSIONS",
+        ):
+            os.environ.pop(key, None)
+
+
 def test_nested_config_structure() -> None:
     """配置嵌套结构完整。"""
     settings: Settings = get_settings()

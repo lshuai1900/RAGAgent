@@ -6,12 +6,13 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
@@ -77,8 +78,9 @@ class EmbeddingConfig(BaseModel):
     api_key_ref: str = "QWEN_API_KEY"
     model: str = "text-embedding-v3"
     dim: int = 1024
-    batch_size: int = 10
+    batch_size: int = 16
     timeout: int = 60
+    send_dimensions: bool = False
 
 
 class RagConfig(BaseModel):
@@ -129,6 +131,29 @@ class Settings(BaseSettings):
     llm: LlmConfig = LlmConfig()
     embedding: EmbeddingConfig = EmbeddingConfig()
     rag: RagConfig = RagConfig()
+
+    @model_validator(mode="after")
+    def apply_plain_env_overrides(self) -> Settings:
+        """兼容常见 EMBEDDING_* 环境变量，同时保留 RAGENT__ 嵌套变量支持。"""
+        embedding_overrides: dict[str, Any] = {}
+        if value := os.environ.get("EMBEDDING_BASE_URL"):
+            embedding_overrides["base_url"] = value
+        if os.environ.get("EMBEDDING_API_KEY"):
+            embedding_overrides["api_key_ref"] = "EMBEDDING_API_KEY"
+        if value := os.environ.get("EMBEDDING_MODEL"):
+            embedding_overrides["model"] = value
+        if value := os.environ.get("EMBEDDING_DIMENSION"):
+            embedding_overrides["dim"] = int(value)
+        if value := os.environ.get("EMBEDDING_BATCH_SIZE"):
+            embedding_overrides["batch_size"] = int(value)
+        if value := os.environ.get("EMBEDDING_TIMEOUT"):
+            embedding_overrides["timeout"] = int(value)
+        if value := os.environ.get("EMBEDDING_SEND_DIMENSIONS"):
+            embedding_overrides["send_dimensions"] = value.strip().lower() in {"1", "true", "yes", "on"}
+
+        if embedding_overrides:
+            self.embedding = self.embedding.model_copy(update=embedding_overrides)
+        return self
 
     @classmethod
     def settings_customise_sources(

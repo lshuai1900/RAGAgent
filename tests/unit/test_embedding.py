@@ -388,18 +388,42 @@ async def test_default_payload_does_not_contain_dashscope_incompatible_fields() 
 
 
 @pytest.mark.asyncio
-async def test_embed_splits_at_ten_texts_by_default() -> None:
-    """默认 batch_size=10：15 条 input 触发 2 次请求（10 + 5），结果按原顺序合并。"""
-    texts = [f"t{i}" for i in range(15)]
-    # 第 1 批返回 10 条向量，第 2 批返回 5 条向量
+async def test_payload_sends_dimensions_only_when_enabled() -> None:
+    """send_dimensions=True 时才发送 dimensions 字段。"""
+    captured: list[dict[str, Any]] = []
+    response_json = _make_embedding_response([[0.1, 0.2, 0.3]])
+    mock_client = _make_capturing_client([_make_mock_response(200, json_body=response_json)], captured)
+
+    client = OpenAICompatibleEmbeddingClient(
+        base_url="https://example.com/v1",
+        api_key_ref="TEST_API_KEY",
+        model="custom-embedding",
+        dim=3,
+        send_dimensions=True,
+        api_key="dummy",
+        http_client=mock_client,
+    )
+
+    await client.embed(["hello"])
+
+    payload = captured[0]
+    assert payload["dimensions"] == 3
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_embed_splits_at_sixteen_texts_by_default() -> None:
+    """默认 batch_size=16：17 条 input 触发 2 次请求（16 + 1），结果按原顺序合并。"""
+    texts = [f"t{i}" for i in range(17)]
+    # 第 1 批返回 16 条向量，第 2 批返回 1 条向量
     responses = [
         _make_mock_response(
             200,
-            json_body=_make_embedding_response([[float(i), 0.0] for i in range(10)]),
+            json_body=_make_embedding_response([[float(i), 0.0] for i in range(16)]),
         ),
         _make_mock_response(
             200,
-            json_body=_make_embedding_response([[float(i) + 100, 0.0] for i in range(5)]),
+            json_body=_make_embedding_response([[100.0, 0.0]]),
         ),
     ]
     captured: list[dict[str, Any]] = []
@@ -412,22 +436,21 @@ async def test_embed_splits_at_ten_texts_by_default() -> None:
         dim=2,
         api_key="dummy",
         http_client=mock_client,
-        # 不传 batch_size，使用默认值 10
+        # 不传 batch_size，使用默认值 16
     )
 
     result = await client.embed(texts)
 
-    assert len(result) == 15
+    assert len(result) == 17
     # 2 次请求
     assert len(captured) == 2
-    # 第 1 批 10 条，第 2 批 5 条
-    assert len(captured[0]["input"]) == 10
-    assert len(captured[1]["input"]) == 5
-    # 顺序合并：前 10 条来自第 1 批，后 5 条来自第 2 批
+    # 第 1 批 16 条，第 2 批 1 条
+    assert len(captured[0]["input"]) == 16
+    assert len(captured[1]["input"]) == 1
+    # 顺序合并：前 16 条来自第 1 批，最后 1 条来自第 2 批
     assert result[0] == [0.0, 0.0]
-    assert result[9] == [9.0, 0.0]
-    assert result[10] == [100.0, 0.0]
-    assert result[14] == [104.0, 0.0]
+    assert result[15] == [15.0, 0.0]
+    assert result[16] == [100.0, 0.0]
     await client.close()
 
 
@@ -452,4 +475,32 @@ async def test_http_400_error_message_contains_response_body() -> None:
     assert exc_info.value.code == 30010
     assert "400" in exc_info.value.message
     assert "input data length exceeds max limit" in exc_info.value.message
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_http_400_error_message_extracts_nested_error_message() -> None:
+    """HTTP 400 时优先提取 error.message，避免前端只看到原始 HTTP 状态。"""
+    error_body = {
+        "error": {
+            "message": "This model does not support dimensions",
+            "type": "invalid_request_error",
+        }
+    }
+    error_response = _make_mock_response(400, json_body=error_body)
+    mock_client = _make_mock_client([error_response])
+
+    client = OpenAICompatibleEmbeddingClient(
+        base_url="https://example.com/v1",
+        api_key_ref="TEST_API_KEY",
+        model="m",
+        dim=2,
+        api_key="dummy",
+        http_client=mock_client,
+    )
+
+    with pytest.raises(InfraException) as exc_info:
+        await client.embed(["text"])
+    assert exc_info.value.code == 30010
+    assert exc_info.value.message == "Embedding API 调用失败 (HTTP 400): This model does not support dimensions"
     await client.close()

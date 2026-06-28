@@ -37,6 +37,9 @@ const statusText = computed(() => documentStatusBadgeText(props.document.status)
 const hasError = computed(
   () => props.document.status === 'failed' && !!props.document.error_message,
 )
+const statusTooltip = computed(() =>
+  hasError.value ? props.document.error_message : statusText.value,
+)
 </script>
 
 <template>
@@ -56,17 +59,19 @@ const hasError = computed(
           <AlertCircle :size="13" />
         </span>
       </Tooltip>
-      <span class="file-item__badge" :class="`file-item__badge--${kind}`">
-        <Loader
-          v-if="kind === 'processing'"
-          :size="13"
-          class="file-item__spin"
-        />
-        <CheckCircle2 v-else-if="kind === 'success'" :size="13" />
-        <XCircle v-else-if="kind === 'error'" :size="13" />
-        <Clock v-else :size="13" />
-        {{ statusText }}
-      </span>
+      <Tooltip :title="statusTooltip" placement="topRight">
+        <span class="file-item__badge" :class="`file-item__badge--${kind}`">
+          <Loader
+            v-if="kind === 'processing'"
+            :size="13"
+            class="file-item__spin"
+          />
+          <CheckCircle2 v-else-if="kind === 'success'" :size="13" />
+          <XCircle v-else-if="kind === 'error'" :size="13" />
+          <Clock v-else :size="13" />
+          {{ statusText }}
+        </span>
+      </Tooltip>
     </div>
   </div>
 </template>
