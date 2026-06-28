@@ -9,6 +9,8 @@
 - POST /api/v1/knowledge-bases：创建知识库
 - GET /api/v1/knowledge-bases：分页列出知识库
 - GET /api/v1/knowledge-bases/{kb_id}：按 ID 查询知识库
+- PATCH /api/v1/knowledge-bases/{kb_id}：更新知识库（重命名 / 描述 / 状态）
+- DELETE /api/v1/knowledge-bases/{kb_id}：删除知识库（软删除 + 清理向量库 collection）
 """
 
 from __future__ import annotations
@@ -19,8 +21,10 @@ from ragent.api.deps import get_knowledge_service
 from ragent.framework.core.response import ApiResponse
 from ragent.schemas.knowledge_base import (
     KnowledgeBaseCreate,
+    KnowledgeBaseDeleteResponse,
     KnowledgeBaseOut,
     KnowledgeBasePage,
+    KnowledgeBaseUpdate,
 )
 from ragent.service.knowledge_service import KnowledgeService
 
@@ -73,6 +77,45 @@ async def get_knowledge_base(
     """按 ID 查询知识库。"""
     kb = await service.get_knowledge_base(kb_id)
     return ApiResponse.success(data=kb)
+
+
+@router.patch(
+    "/{kb_id}",
+    response_model=ApiResponse[KnowledgeBaseOut],
+    status_code=status.HTTP_200_OK,
+)
+async def update_knowledge_base(
+    kb_id: str,
+    payload: KnowledgeBaseUpdate,
+    service: KnowledgeService = Depends(get_knowledge_service),
+) -> ApiResponse[KnowledgeBaseOut]:
+    """更新知识库（重命名 / 描述 / 状态）。
+
+    - 部分更新：仅传入的字段会被修改
+    - 名称变更时校验唯一性，重名返回 400
+    - 知识库不存在返回 404
+    """
+    kb = await service.update_knowledge_base(kb_id, payload)
+    return ApiResponse.success(data=kb)
+
+
+@router.delete(
+    "/{kb_id}",
+    response_model=ApiResponse[KnowledgeBaseDeleteResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def delete_knowledge_base(
+    kb_id: str,
+    service: KnowledgeService = Depends(get_knowledge_service),
+) -> ApiResponse[KnowledgeBaseDeleteResponse]:
+    """删除知识库（软删除）。
+
+    - 将知识库状态改为 archived，列表与详情不再返回
+    - 同时尝试删除对应向量库 collection，失败仅记录日志，不回滚数据库
+    - 知识库不存在返回 404
+    """
+    result = await service.delete_knowledge_base(kb_id)
+    return ApiResponse.success(data=result, message="删除成功")
 
 
 __all__ = ["router"]

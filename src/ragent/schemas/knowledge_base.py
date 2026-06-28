@@ -44,10 +44,26 @@ class KnowledgeBaseCreate(BaseModel):
 
 
 class KnowledgeBaseUpdate(BaseModel):
-    """更新知识库请求（仅支持修改描述与状态）。"""
+    """更新知识库请求（支持修改名称、描述、状态）。
 
+    所有字段可选，仅传入的字段会被更新（部分更新语义）。
+    名称变更时会做唯一性校验。
+    """
+
+    name: str | None = Field(None, min_length=1, max_length=128, description="知识库名称（唯一）")
     description: str | None = Field(None, max_length=512, description="描述")
     status: KnowledgeBaseStatus | None = Field(None, description="状态")
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str | None) -> str | None:
+        """名称非空校验：去除首尾空白后不能为空。"""
+        if v is None:
+            return v
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("知识库名称不能为空")
+        return stripped
 
 
 class KnowledgeBaseOut(BaseModel):
@@ -70,6 +86,14 @@ class KnowledgeBaseOut(BaseModel):
     updated_at: datetime
 
 
+class KnowledgeBaseDeleteResponse(BaseModel):
+    """知识库删除响应。"""
+
+    id: str
+    status: str
+    collection_name: str
+
+
 class KnowledgeBasePage(BaseModel):
     """知识库分页响应。"""
 
@@ -81,6 +105,7 @@ class KnowledgeBasePage(BaseModel):
 
 __all__ = [
     "KnowledgeBaseCreate",
+    "KnowledgeBaseDeleteResponse",
     "KnowledgeBaseOut",
     "KnowledgeBasePage",
     "KnowledgeBaseUpdate",
