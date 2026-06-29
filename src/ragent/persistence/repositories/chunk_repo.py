@@ -8,9 +8,10 @@ service 层通过本 Repository 访问 t_document_chunk 表。
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ragent.domain.enums import ChunkEmbeddingStatus
@@ -154,7 +155,10 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
 
         stmt = sa_delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
         result = await self._session.execute(stmt)
-        return int(result.rowcount or 0)
+        # SQLAlchemy 2.0 静态类型不暴露 Result.rowcount，运行时实际存在；
+        # DELETE/UPDATE 返回的是 CursorResult，cast 后 mypy 可识别 rowcount。
+        cursor_result = cast(CursorResult[Any], result)
+        return int(cursor_result.rowcount or 0)
 
     async def list_contents_by_document(self, document_id: str) -> list[dict[str, Any]]:
         """列出某文档所有分块的内容与元信息（供重新处理复用）。
