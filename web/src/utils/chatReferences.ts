@@ -28,6 +28,28 @@ export interface UiChatReference {
   metadata?: Record<string, unknown>
 }
 
+/** 聊天消息（Step 8，仅保存在当前页面内存中，不写入后端历史） */
+export interface ChatMessage {
+  /** 前端生成的主键 */
+  id: string
+  /** 角色：user / assistant */
+  role: 'user' | 'assistant'
+  /** 内容（assistant 在 delta 期间逐步追加） */
+  content: string
+  /** 创建时间（ISO） */
+  createdAt: string
+  /** 是否正在流式生成 */
+  streaming?: boolean
+  /** 错误信息（中文） */
+  error?: string
+  /** 追踪编号（start / done / error 事件携带） */
+  traceId?: string
+  /** 结束原因（done 事件携带） */
+  finishReason?: string
+  /** 引用来源（done 事件携带时填充，否则为空数组） */
+  references?: UiChatReference[]
+}
+
 /** done 事件中可能携带引用来源的载荷（任一即可） */
 export interface ReferenceSourcePayload {
   references?: unknown
