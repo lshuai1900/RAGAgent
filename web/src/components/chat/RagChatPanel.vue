@@ -26,10 +26,10 @@ import {
   Square,
 } from 'lucide-vue-next'
 import { streamChatSse } from '@/api/chat'
-import { ApiError, NetworkError, formatApiError } from '@/api/client'
 import YuxiEmptyState from '@/components/yuxi/YuxiEmptyState.vue'
 import ChatMessageBubble from '@/components/chat/ChatMessageBubble.vue'
 import { mapCitationsToReferences, type ChatMessage, type UiChatReference } from '@/utils/chatReferences'
+import { formatChatStreamError } from '@/utils/apiErrors'
 import type { ChatSseRequest } from '@/types/api'
 
 interface Props {
@@ -94,34 +94,8 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-/** 错误映射（中文） */
-function mapError(err: unknown): { msg: string; trace: string } {
-  if (err instanceof DOMException && err.name === 'AbortError') {
-    return { msg: '已停止生成', trace: '' }
-  }
-  if (err instanceof NetworkError) {
-    return { msg: '无法连接后端服务，请检查 API 地址或服务状态', trace: '' }
-  }
-  if (err instanceof ApiError) {
-    const trace = err.traceId
-    if (err.httpStatus === 400 || err.httpStatus === 422) {
-      return { msg: '请求参数不正确，请检查问题内容后重试', trace }
-    }
-    if (err.httpStatus === 404) {
-      return { msg: '知识库不存在或已被删除', trace }
-    }
-    if (err.httpStatus === 409) {
-      return { msg: '当前知识库正在处理中，请稍后重试', trace }
-    }
-    if (err.httpStatus >= 500) {
-      return { msg: '服务器内部错误，请稍后重试', trace }
-    }
-    return { msg: err.message, trace }
-  }
-  return { msg: formatApiError(err), trace: '' }
-}
-
-/** SSE error 事件错误映射 */
+/** 错误映射（中文）由 utils/apiErrors.ts 统一提供 */
+/** SSE error 事件错误映射（后端 error 事件已有中文 message 时直接用） */
 function mapSseError(data: { message: string; trace_id: string }): string {
   return data.message || '生成失败'
 }
@@ -240,7 +214,7 @@ async function handleSend(): Promise<void> {
       isReceiving.value = false
     }
   } catch (err) {
-    const { msg, trace } = mapError(err)
+    const { msg, trace } = formatChatStreamError(err)
     patchAssistant(assistantId, {
       streaming: false,
       error: msg,

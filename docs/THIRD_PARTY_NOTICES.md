@@ -62,7 +62,7 @@ SOFTWARE.
 
 ## 复制 / 改造来源清单
 
-后续 Step 1+ 阶段在 `web/` 下复制或改造自 Yuxi v0.7.0 的文件，将在该文件落地的对应清单中追加，并保留文件头 MIT 归属注释。本 Step 0 阶段仅做声明与开关落地，未实际复制 Yuxi 源文件。
+Step 1–9 阶段在 `web/` 下复制或改造自 Yuxi v0.7.0 的文件，均保留文件头 MIT 归属注释。涉及视图与组件包括：YuxiAppShell / YuxiPageHeader / YuxiCard / YuxiEmptyState / YuxiStatusBadge 等基座组件，以及 DashboardView / KnowledgeBaseListView / KnowledgeBaseDetailView / FileManagerPanel / DocumentUploadModal / KbRetrievalTab / RagChatPanel / ChatMessageBubble / SourceReferenceCard 等页面与组件的布局、样式与交互实现。本项目仅复制并改造 Yuxi 在轻量 RAG-only 范围内的前端布局、组件、样式与交互，不复制或启用其 MCP、Skills、SubAgents、沙盒、LangGraph、多租户、权限、JWT、知识图谱、知识导图、RAG 评估、模型路由、Rerank 等重功能。
 
 ## 其他依赖
 

@@ -29,12 +29,12 @@ import {
   Square,
 } from 'lucide-vue-next'
 import { streamChatSse } from '@/api/chat'
-import { ApiError, NetworkError, formatApiError } from '@/api/client'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import YuxiCard from '@/components/yuxi/YuxiCard.vue'
 import YuxiEmptyState from '@/components/yuxi/YuxiEmptyState.vue'
 import SourceReferenceCard from '@/components/chat/SourceReferenceCard.vue'
 import { mapCitationsToReferences, type UiChatReference } from '@/utils/chatReferences'
+import { formatChatStreamError } from '@/utils/apiErrors'
 import type { ChatSseRequest } from '@/types/api'
 
 const route = useRoute()
@@ -97,36 +97,8 @@ function genSessionId(): string {
   return `ragagent-retrieval-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-/** 错误映射（中文） */
-function mapError(err: unknown): { msg: string; trace: string } {
-  if (err instanceof DOMException && err.name === 'AbortError') {
-    return { msg: '已停止生成', trace: traceId.value }
-  }
-  if (err instanceof NetworkError) {
-    return { msg: '无法连接后端服务，请检查 API 地址或服务状态', trace: '' }
-  }
-  if (err instanceof ApiError) {
-    const trace = err.traceId
-    if (err.httpStatus === 400 || err.httpStatus === 422) {
-      return { msg: '请求参数不正确，请检查问题内容后重试', trace }
-    }
-    if (err.httpStatus === 404) {
-      return { msg: '知识库不存在或已被删除', trace }
-    }
-    if (err.httpStatus === 409) {
-      return { msg: '当前知识库正在处理中，请稍后重试', trace }
-    }
-    if (err.httpStatus >= 500) {
-      return { msg: '服务器内部错误，请稍后重试', trace }
-    }
-    return { msg: err.message, trace }
-  }
-  return { msg: formatApiError(err), trace: '' }
-}
-
-/** SSE error 事件错误映射 */
+/** SSE error 事件错误映射（后端 error 事件已有中文 message 时直接用） */
 function mapSseError(data: { message: string; trace_id: string; code: number }): string {
-  // 后端 error 事件已有中文 message 时直接用
   return data.message || '生成失败'
 }
 
@@ -198,7 +170,7 @@ async function handleSend(): Promise<void> {
       phase.value = 'error'
     }
   } catch (err) {
-    const { msg, trace } = mapError(err)
+    const { msg, trace } = formatChatStreamError(err)
     errorMsg.value = msg
     if (trace && !traceId.value) traceId.value = trace
     // AbortError 不视为红色错误（已停止生成）
