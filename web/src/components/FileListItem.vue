@@ -3,28 +3,24 @@
  * 文件列表行（P1.6 知识库工作台 / Yuxi 风格）
  * - 左侧：文件类型徽标
  * - 中间：文件名（长名省略）+ 浅色元信息（大小 · 时间）
- * - 右侧：状态徽标（已入库 / 处理中 / 等待处理 / 处理失败）+ 操作菜单（重命名 / 删除 / 重新处理）
+ * - 右侧：状态徽标（已入库 / 处理中 / 等待处理 / 处理失败）+ 始终可见的操作按钮（重命名 / 重新处理 / 删除）
  * - 失败行展示错误提示入口（Tooltip）
  * - 行底细分隔线，hover 淡灰背景
  *
- * 操作菜单可用性：
+ * 操作按钮可用性（按钮始终可见，仅在特定状态下禁用）：
  * - 已入库（completed）/ 处理失败（failed）：三项全可用
  * - 待处理（pending）/ 处理中（processing）：
  *   - 重命名 / 删除：可用（用户可在处理过程中取消或改名）
- *   - 重新处理：禁用，提示"文档处理中，暂无法重新处理"
+ *   - 重新处理：禁用，hover 提示"文档处理中，暂无法重新处理"
  */
 import { computed } from 'vue'
-import { Tooltip, Dropdown, Menu, MenuItem, MenuDivider } from 'ant-design-vue'
+import { Tooltip } from 'ant-design-vue'
 import {
   CheckCircle2,
   XCircle,
   Loader,
   Clock,
   AlertCircle,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  RefreshCw,
 } from 'lucide-vue-next'
 import type { DocumentOut } from '@/types/api'
 import { formatFileSize, formatTime } from '@/utils/format'
@@ -38,7 +34,7 @@ import FileTypeIcon from '@/components/FileTypeIcon.vue'
 
 interface Props {
   document: DocumentOut
-  /** 操作进行中（重命名 / 删除 / 重新处理），用于禁用菜单避免重复提交 */
+  /** 操作进行中（重命名 / 删除 / 重新处理），用于禁用按钮避免重复提交 */
   actionLoading?: boolean
 }
 const props = defineProps<Props>()
@@ -72,19 +68,23 @@ const reprocessDisabledReason = computed(() => {
   return ''
 })
 
-/** 菜单项是否禁用 */
-const menuDisabled = computed(() => Boolean(props.actionLoading))
+/** 按钮是否禁用（任一操作进行中） */
+const buttonsDisabled = computed(() => Boolean(props.actionLoading))
+/** 重新处理按钮是否禁用 */
+const reprocessDisabled = computed(
+  () => buttonsDisabled.value || Boolean(reprocessDisabledReason.value),
+)
 
 function handleRename(): void {
-  if (menuDisabled.value) return
+  if (buttonsDisabled.value) return
   emit('rename', props.document)
 }
 function handleDelete(): void {
-  if (menuDisabled.value) return
+  if (buttonsDisabled.value) return
   emit('delete', props.document)
 }
 function handleReprocess(): void {
-  if (menuDisabled.value || reprocessDisabledReason.value) return
+  if (reprocessDisabled.value) return
   emit('reprocess', props.document)
 }
 </script>
@@ -120,43 +120,36 @@ function handleReprocess(): void {
         </span>
       </Tooltip>
 
-      <!-- 操作菜单：重命名 / 删除 / 重新处理 -->
-      <Dropdown placement="bottomRight" :trigger="['click']">
+      <!-- 操作按钮：始终可见（重命名 / 重新处理 / 删除），紧邻状态徽标右侧 -->
+      <div class="file-item__actions">
         <button
           type="button"
-          class="file-item__more"
-          :disabled="menuDisabled"
-          :title="menuDisabled ? '操作进行中…' : '更多操作'"
-          @click.stop
+          class="file-item__action"
+          :disabled="buttonsDisabled"
+          title="重命名"
+          @click="handleRename"
         >
-          <MoreHorizontal :size="16" />
+          重命名
         </button>
-        <template #overlay>
-          <Menu class="file-item__menu">
-            <MenuItem key="rename" :disabled="menuDisabled" @click="handleRename">
-              <template #icon><Pencil :size="14" /></template>
-              重命名
-            </MenuItem>
-            <MenuItem
-              key="reprocess"
-              :disabled="menuDisabled || Boolean(reprocessDisabledReason)"
-              :title="reprocessDisabledReason"
-              @click="handleReprocess"
-            >
-              <template #icon><RefreshCw :size="14" /></template>
-              重新处理
-              <span v-if="reprocessDisabledReason" class="file-item__menu-hint">
-                · {{ reprocessDisabledReason }}
-              </span>
-            </MenuItem>
-            <MenuDivider />
-            <MenuItem key="delete" :disabled="menuDisabled" danger @click="handleDelete">
-              <template #icon><Trash2 :size="14" /></template>
-              删除
-            </MenuItem>
-          </Menu>
-        </template>
-      </Dropdown>
+        <button
+          type="button"
+          class="file-item__action"
+          :disabled="reprocessDisabled"
+          :title="reprocessDisabledReason || '重新处理'"
+          @click="handleReprocess"
+        >
+          重新处理
+        </button>
+        <button
+          type="button"
+          class="file-item__action file-item__action--danger"
+          :disabled="buttonsDisabled"
+          title="删除"
+          @click="handleDelete"
+        >
+          删除
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -175,8 +168,6 @@ function handleReprocess(): void {
 .file-item:hover {
   background-color: var(--kb-bg-hover);
 }
-
-/* 失败行不做重背景，保持列表清爽，仅状态徽标提示 */
 
 .file-item__main {
   flex: 1;
@@ -255,36 +246,57 @@ function handleReprocess(): void {
   animation: file-item-spin 0.9s linear infinite;
 }
 
-/* 更多操作按钮（24×24，浅边框，hover 主色） */
-.file-item__more {
+/* 操作按钮组：始终可见，紧邻状态徽标右侧 */
+.file-item__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 单个操作按钮：白底浅边 ghost 风格，28px 高，始终可见 */
+.file-item__action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
   height: 28px;
+  min-width: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--kb-border-strong);
   border-radius: var(--kb-radius-sm);
   background-color: var(--kb-surface);
-  border: 1px solid var(--kb-border-strong);
   color: var(--kb-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.file-item__more:hover:not(:disabled) {
+.file-item__action:hover:not(:disabled) {
   color: var(--kb-primary-hover);
   border-color: var(--kb-primary-soft-hover);
   background-color: var(--kb-primary-bg);
 }
 
-.file-item__more:disabled {
-  opacity: 0.55;
+.file-item__action:active:not(:disabled) {
+  background-color: var(--kb-primary-bg-hover);
+}
+
+.file-item__action:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.file-item__menu-hint {
-  margin-left: 4px;
-  font-size: 12px;
-  color: var(--kb-text-tertiary);
+/* 删除按钮：危险色文字 */
+.file-item__action--danger {
+  color: var(--kb-status-error);
+}
+
+.file-item__action--danger:hover:not(:disabled) {
+  color: var(--kb-status-error);
+  border-color: var(--kb-status-error-bg);
+  background-color: var(--kb-status-error-bg);
 }
 
 @keyframes file-item-spin {
