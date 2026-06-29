@@ -1,25 +1,28 @@
+<!--
+  Adapted from xerrors/Yuxi under MIT License.
+  Original project: `https://github.com/xerrors/Yuxi`
+  Version: v0.7.0
+  Modified for RAGAgent lightweight RAG-only scope.
+  Step 5：状态徽标改用 YuxiStatusBadge；元信息补 chunk_count / 更新时间。
+-->
 <script setup lang="ts">
 /**
- * 文件列表行（P1.6 知识库工作台 / Yuxi 风格）
+ * 文件列表行（Yuxi 风格）
  * - 左侧：文件类型徽标
- * - 中间：文件名（长名省略）+ 浅色元信息（大小 · 时间）
- * - 右侧：状态徽标（已入库 / 处理中 / 等待处理 / 处理失败）+ 操作菜单（重命名 / 删除 / 重新处理）
+ * - 中间：文件名（长名省略）+ 浅色元信息（大小 · 分块数 · 创建时间 · 更新时间）
+ * - 右侧：YuxiStatusBadge + 操作菜单（重命名 / 重新处理 / 删除）
  * - 失败行展示错误提示入口（Tooltip）
  * - 行底细分隔线，hover 淡灰背景
  *
  * 操作菜单可用性：
  * - 已入库（completed）/ 处理失败（failed）：三项全可用
- * - 待处理（pending）/ 处理中（processing）：
+ * - 待处理（pending）/ 处理中（parsing/chunking/embedding/indexing）：
  *   - 重命名 / 删除：可用（用户可在处理过程中取消或改名）
- *   - 重新处理：禁用，提示"文档处理中，暂无法重新处理"
+ *   - 重新处理：禁用，提示"文档正在处理中"
  */
 import { computed } from 'vue'
 import { Tooltip, Dropdown, Menu, MenuItem, MenuDivider } from 'ant-design-vue'
 import {
-  CheckCircle2,
-  XCircle,
-  Loader,
-  Clock,
   AlertCircle,
   MoreHorizontal,
   Pencil,
@@ -29,11 +32,10 @@ import {
 import type { DocumentOut } from '@/types/api'
 import { formatFileSize, formatTime } from '@/utils/format'
 import {
-  documentStatusBadgeText,
-  documentStatusBadgeKind,
+  documentYuxiStatus,
   isProcessingDocumentStatus,
-  type StatusBadgeKind,
 } from '@/utils/status'
+import YuxiStatusBadge from '@/components/yuxi/YuxiStatusBadge.vue'
 import FileTypeIcon from '@/components/FileTypeIcon.vue'
 
 interface Props {
@@ -50,15 +52,13 @@ interface Emits {
 }
 const emit = defineEmits<Emits>()
 
-const kind = computed<StatusBadgeKind>(() =>
-  documentStatusBadgeKind(props.document.status),
-)
-const statusText = computed(() => documentStatusBadgeText(props.document.status))
+const yuxiStatus = computed(() => documentYuxiStatus(props.document.status))
+
 const hasError = computed(
   () => props.document.status === 'failed' && !!props.document.error_message,
 )
 const statusTooltip = computed(() =>
-  hasError.value ? props.document.error_message : statusText.value,
+  hasError.value ? props.document.error_message : yuxiStatus.value.label,
 )
 
 /** 是否处于处理中（parsing/chunking/embedding/indexing），重新处理需禁用 */
@@ -67,13 +67,49 @@ const isProcessing = computed(() => isProcessingDocumentStatus(props.document.st
 const isPending = computed(() => props.document.status === 'pending')
 /** 重新处理禁用原因 */
 const reprocessDisabledReason = computed(() => {
-  if (isProcessing.value) return '文档处理中，暂无法重新处理'
+  if (isProcessing.value) return '文档正在处理中，暂无法重新处理'
   if (isPending.value) return '文档等待处理，暂无法重新处理'
   return ''
 })
 
 /** 菜单项是否禁用 */
 const menuDisabled = computed(() => Boolean(props.actionLoading))
+
+/** 元信息片段：大小 · 分块数 · 创建时间 · 更新时间（仅当字段存在时展示） */
+interface MetaSeg {
+  text: string
+  title: string
+}
+const metaSegs = computed<MetaSeg[]>(() => {
+  const segs: MetaSeg[] = []
+  // 文件大小（始终展示，未知时显示"未知大小"）
+  const size = props.document.file_size
+  segs.push({
+    text: typeof size === 'number' && size >= 0 ? formatFileSize(size) : '未知大小',
+    title: '文件大小',
+  })
+  // 分块数（>0 才展示，0 或缺失显示 "-"）
+  const chunkCount = props.document.chunk_count
+  segs.push({
+    text: typeof chunkCount === 'number' && chunkCount > 0 ? `${chunkCount} 块` : '-',
+    title: '分块数',
+  })
+  // 创建时间
+  const createdAt = props.document.created_at
+  segs.push({
+    text: createdAt ? formatTime(createdAt) : '-',
+    title: '创建时间',
+  })
+  // 更新时间（与创建时间不同才展示）
+  const updatedAt = props.document.updated_at
+  if (updatedAt && updatedAt !== createdAt) {
+    segs.push({
+      text: formatTime(updatedAt),
+      title: '更新时间',
+    })
+  }
+  return segs
+})
 
 function handleRename(): void {
   if (menuDisabled.value) return
@@ -90,14 +126,22 @@ function handleReprocess(): void {
 </script>
 
 <template>
-  <div class="file-item" :class="`file-item--${kind}`">
+  <div class="file-item" :class="`file-item--${yuxiStatus.kind}`">
     <FileTypeIcon :file-type="document.file_type" :size="36" />
 
     <div class="file-item__main">
       <span class="file-item__name" :title="document.name">{{ document.name }}</span>
       <span class="file-item__meta">
-        {{ formatFileSize(document.file_size) }} · {{ formatTime(document.created_at) }}
+        <template v-for="(seg, idx) in metaSegs" :key="seg.title">
+          <span v-if="idx > 0" class="file-item__meta-sep">·</span>
+          <span :title="seg.title">{{ seg.text }}</span>
+        </template>
       </span>
+      <!-- 失败行错误信息红色简短提示 -->
+      <div v-if="hasError" class="file-item__error">
+        <AlertCircle :size="12" />
+        <span class="file-item__error-text">{{ document.error_message }}</span>
+      </div>
     </div>
 
     <div class="file-item__status">
@@ -107,20 +151,10 @@ function handleReprocess(): void {
         </span>
       </Tooltip>
       <Tooltip :title="statusTooltip" placement="topRight">
-        <span class="file-item__badge" :class="`file-item__badge--${kind}`">
-          <Loader
-            v-if="kind === 'processing'"
-            :size="13"
-            class="file-item__spin"
-          />
-          <CheckCircle2 v-else-if="kind === 'success'" :size="13" />
-          <XCircle v-else-if="kind === 'error'" :size="13" />
-          <Clock v-else :size="13" />
-          {{ statusText }}
-        </span>
+        <YuxiStatusBadge :kind="yuxiStatus.kind" :label="yuxiStatus.label" />
       </Tooltip>
 
-      <!-- 操作菜单：重命名 / 删除 / 重新处理 -->
+      <!-- 操作菜单：重命名 / 重新处理 / 删除 -->
       <Dropdown placement="bottomRight" :trigger="['click']">
         <button
           type="button"
@@ -164,32 +198,31 @@ function handleReprocess(): void {
 <style scoped>
 .file-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
-  height: 56px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--kb-border-light);
+  min-height: 64px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--yuxi-gray-100);
   transition: background-color 0.15s;
 }
 
 .file-item:hover {
-  background-color: var(--kb-bg-hover);
+  background-color: var(--yuxi-gray-50);
 }
-
-/* 失败行不做重背景，保持列表清爽，仅状态徽标提示 */
 
 .file-item__main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  padding-top: 2px;
 }
 
 .file-item__name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--kb-text-title);
+  color: var(--yuxi-gray-900);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -197,7 +230,30 @@ function handleReprocess(): void {
 
 .file-item__meta {
   font-size: 12px;
-  color: var(--kb-text-tertiary);
+  color: var(--yuxi-gray-500);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.file-item__meta-sep {
+  color: var(--yuxi-gray-300);
+  margin: 0 2px;
+}
+
+/* 失败行错误信息 */
+.file-item__error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--yuxi-error-700);
+  max-width: 100%;
+}
+
+.file-item__error-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -208,72 +264,36 @@ function handleReprocess(): void {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 4px;
 }
 
 .file-item__error-entry {
   display: inline-flex;
   align-items: center;
-  color: var(--kb-status-error);
+  color: var(--yuxi-error-700);
   cursor: help;
 }
 
-/* 状态 pill：24px 高，pill 圆角 */
-.file-item__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--kb-radius-pill);
-  line-height: 1;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.file-item__badge--success {
-  color: var(--kb-status-success);
-  background-color: var(--kb-status-success-bg);
-}
-
-.file-item__badge--error {
-  color: var(--kb-status-error);
-  background-color: var(--kb-status-error-bg);
-}
-
-.file-item__badge--processing {
-  color: var(--kb-status-processing);
-  background-color: var(--kb-status-processing-bg);
-}
-
-.file-item__badge--pending {
-  color: var(--kb-status-pending);
-  background-color: var(--kb-status-pending-bg);
-}
-
-.file-item__spin {
-  animation: file-item-spin 0.9s linear infinite;
-}
-
-/* 更多操作按钮（24×24，浅边框，hover 主色） */
+/* 更多操作按钮（28×28，浅边框，hover 主色） */
 .file-item__more {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--kb-radius-sm);
-  background-color: var(--kb-surface);
-  border: 1px solid var(--kb-border-strong);
-  color: var(--kb-text-secondary);
+  border-radius: var(--yuxi-radius-sm);
+  background-color: var(--yuxi-gray-0);
+  border: 1px solid var(--yuxi-gray-150);
+  color: var(--yuxi-gray-600);
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .file-item__more:hover:not(:disabled) {
-  color: var(--kb-primary-hover);
-  border-color: var(--kb-primary-soft-hover);
-  background-color: var(--kb-primary-bg);
+  color: var(--yuxi-main-color);
+  border-color: var(--yuxi-main-100);
+  background-color: var(--yuxi-main-20);
 }
 
 .file-item__more:disabled {
@@ -284,12 +304,17 @@ function handleReprocess(): void {
 .file-item__menu-hint {
   margin-left: 4px;
   font-size: 12px;
-  color: var(--kb-text-tertiary);
+  color: var(--yuxi-gray-500);
 }
 
-@keyframes file-item-spin {
-  to {
-    transform: rotate(360deg);
+/* 移动端：操作按钮压缩 */
+@media (max-width: 767px) {
+  .file-item {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .file-item__name {
+    font-size: 13px;
   }
 }
 </style>
