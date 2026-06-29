@@ -64,7 +64,7 @@ function toggleSidebar() {
 /** 导航项列表，全部暂缓项已剔除，不依赖 featureFlags（默认 false） */
 const navItems = computed<NavItem[]>(() => {
   const items: NavItem[] = [
-    { path: '/dashboard', label: '仪表盘', icon: Boxes, match: 'exact' },
+    { path: '/', label: '仪表盘', icon: Boxes, match: 'exact' },
     { path: '/knowledge-bases', label: '知识库', icon: Library, match: 'prefix' },
     { path: '/chat', label: '聊天问答', icon: MessageSquare, match: 'prefix' },
     { path: '/settings', label: '设置', icon: Settings, match: 'exact' }

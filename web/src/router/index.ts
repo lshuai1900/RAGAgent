@@ -1,17 +1,18 @@
 /**
- * 路由表：/ 重定向到 /knowledge-bases
- * P1.1 阶段所有页面均为占位或基础实现，不接业务 API（仅 /dashboard 调 /health）
+ * 路由表：
+ * - / 仪表盘（Yuxi 风格，调 GET /health）
+ * - /dashboard 兼容旧入口，重定向到 /
  */
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/knowledge-bases' },
   {
-    path: '/dashboard',
+    path: '/',
     name: 'dashboard',
     component: () => import('@/views/DashboardView.vue'),
     meta: { title: '仪表盘' },
   },
+  { path: '/dashboard', redirect: '/' },
   {
     path: '/knowledge-bases',
     name: 'knowledgeBaseList',
