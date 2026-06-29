@@ -66,11 +66,6 @@ const hasNonTerminal = computed(() =>
   docList.value.some((doc) => !isTerminalDocumentStatus(doc.status)),
 )
 
-/** 当前知识库已有文件名列表（传给上传弹窗做前端同名检测） */
-const existingFileNames = computed<string[]>(() =>
-  docList.value.map((doc) => doc.name),
-)
-
 /** 列表轮询定时器 */
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -111,15 +106,6 @@ async function refresh(): Promise<void> {
 
 function openUpload(): void {
   uploadModalOpen.value = true
-}
-
-/**
- * 上传成功回调：
- * - store.upload() 内部已 fetchList + startPolling（单文档 2s）
- * - 这里重启组件级 3s 列表轮询，跟进新文档的非终态状态
- */
-function handleUploaded(): void {
-  schedulePoll()
 }
 
 function handleRename(doc: DocumentOut): void {
@@ -240,12 +226,7 @@ onBeforeUnmount(() => {
     @reprocess="handleReprocess"
   />
 
-  <DocumentUploadModal
-    v-model:open="uploadModalOpen"
-    :kb-id="kbId"
-    :existing-names="existingFileNames"
-    @uploaded="handleUploaded"
-  />
+  <DocumentUploadModal v-model:open="uploadModalOpen" :kb-id="kbId" />
   <DocumentRenameModal
     v-model:open="renameModalOpen"
     :kb-id="kbId"
