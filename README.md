@@ -240,7 +240,7 @@ npm run dev
 
 ### 前端 UI 参考
 
-前端知识库界面参考了开源项目 [xerrors/Yuxi](https://github.com/xerrors/Yuxi) 的产品结构与交互风格，包括知识库列表卡片网格、知识库详情页沉浸式 Header + 横向功能 Tab、文件管理行列表与蓝绿色（teal）产品工作台视觉风格。Yuxi 使用 MIT License，本项目仅做学习与工程复刻用途，未直接复制 Yuxi 的源代码、样式或组件实现。详细声明见 [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md)。
+本项目在轻量 RAG-only 范围内复制并改造了 Yuxi v0.7.0 的部分前端布局、组件、样式与交互实现，用于实现知识库、文档管理、检索测试、聊天问答、设置与健康检查等已实现功能的 UI 对齐。本项目不复制或启用 Yuxi 的 MCP、Skills、SubAgents、沙盒、LangGraph、多租户、权限、JWT、知识图谱、知识导图、RAG 评估、模型路由、Rerank 等重功能。第三方授权说明见 [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md)。
 
 ### 未实现功能
 

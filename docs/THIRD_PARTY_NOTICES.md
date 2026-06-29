@@ -1,20 +1,40 @@
-# 第三方说明与开源声明
+# Third Party Notices
 
-## 前端 UI 参考
+## xerrors/Yuxi
 
-前端知识库界面参考了开源项目 [xerrors/Yuxi](https://github.com/xerrors/Yuxi) 的产品结构与交互风格，包括：
+- Source: `https://github.com/xerrors/Yuxi`
+- Version: v0.7.0
+- License: MIT
+- Usage in RAGAgent:
+  - selected frontend layout patterns
+  - selected view structures
+  - selected UI components
+  - selected CSS styles
+  - selected interaction patterns
+- Adaptation scope:
+  - lightweight RAG-only knowledge base workspace
+  - dashboard
+  - knowledge base list/detail
+  - file management
+  - document upload
+  - retrieval test
+  - chat QA
+  - settings
+- Explicit exclusions:
+  - MCP
+  - Skills
+  - SubAgents
+  - Sandbox
+  - LangGraph orchestration
+  - Knowledge Graph / Mind Map
+  - RAG Evaluation
+  - Multi-tenancy
+  - Auth / JWT / Permission
+  - Conversation history management
+  - Model routing / fallback
+  - Rerank configuration
 
-- 知识库列表卡片网格布局
-- 知识库详情页沉浸式 Header + 横向功能 Tab 结构
-- 文件管理行列表（文件类型图标 + 状态徽标 + 细分隔线）
-- 蓝绿色（teal）主色与浅灰背景的产品工作台视觉风格
-- 顶部标题区（图标 + 标题 + 副标题）的版式
-
-本项目仅做学习与工程复刻用途，**未直接复制 Yuxi 的源代码、样式或组件实现**，所有代码均基于本项目的 Vue 3 + TypeScript + Ant Design Vue 技术栈独立编写，仅在视觉风格与交互模式上对齐参考。
-
-## Yuxi 开源协议
-
-Yuxi 使用 MIT License，著作权归原作者 xerrors 所有。
+## Yuxi MIT License
 
 ```
 MIT License
@@ -40,6 +60,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## 复制 / 改造来源清单
+
+后续 Step 1+ 阶段在 `web/` 下复制或改造自 Yuxi v0.7.0 的文件，将在该文件落地的对应清单中追加，并保留文件头 MIT 归属注释。本 Step 0 阶段仅做声明与开关落地，未实际复制 Yuxi 源文件。
+
 ## 其他依赖
 
-本项目前端使用的开源依赖（Vue 3、Vite、TypeScript、Ant Design Vue、Pinia、Vue Router、lucide-vue-next 等）均遵循各自的开源协议，详见各依赖包的 LICENSE 文件。
+本项目前端使用的开源依赖（Vue 3、Vite、TypeScript、Ant Design Vue、Pinia、Vue Router、lucide-vue-next、dayjs 等）均遵循各自的开源协议，详见各依赖包的 LICENSE 文件。
