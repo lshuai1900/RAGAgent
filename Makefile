@@ -1,21 +1,21 @@
-.PHONY: dev lint typecheck test test-unit test-integration migrate migrate-new sync deps-up
+.PHONY: dev lint typecheck test test-unit test-integration migrate migrate-new sync deps-up deps-down format migrate-down
 
-# 启动依赖（PostgreSQL + Milvus）
+# Start local infrastructure: PostgreSQL + Milvus
 deps-up:
 	docker compose up -d
 
 deps-down:
 	docker compose down
 
-# 安装依赖
+# Install backend dependencies
 sync:
 	uv sync
 
-# 启动开发服务
+# Start backend development server
 dev:
 	uv run uvicorn ragent.main:app --reload --host 0.0.0.0 --port 8000
 
-# Lint
+# Lint and format check
 lint:
 	uv run ruff check src tests
 	uv run ruff format --check src tests
@@ -27,7 +27,7 @@ format:
 typecheck:
 	uv run mypy src/ragent
 
-# 测试
+# Tests
 test:
 	uv run pytest
 
@@ -37,7 +37,7 @@ test-unit:
 test-integration:
 	uv run pytest tests/integration
 
-# 数据库迁移
+# Database migrations
 migrate:
 	uv run alembic upgrade head
 

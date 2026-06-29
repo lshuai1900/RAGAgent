@@ -15,6 +15,11 @@ env/
 # uv
 .uv/
 
+# Agent/worktree scratch
+.claude/
+.superpowers/
+docs/superpowers/
+
 # Frontend
 web/node_modules/
 web/dist/

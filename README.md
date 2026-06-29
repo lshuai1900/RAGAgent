@@ -1,215 +1,132 @@
 # Ragent-Py
 
-基于 [nageoffer/ragent](https://github.com/nageoffer/ragent) 架构思想的 **Python 复刻版** 企业级 Agentic RAG 平台。
+Ragent-Py 是一个基于 Python 技术栈实现的企业级 Agentic RAG MVP。项目参考
+[nageoffer/ragent](https://github.com/nageoffer/ragent) 的架构思想，保留分层、抽象接口、流式问答、Trace ID 透传等工程实践，但不是 Java 代码的逐行翻译。
 
-技术栈：Python 3.11+ / FastAPI / SQLAlchemy 2.0 async / PostgreSQL / Milvus / OpenAI-compatible LLM。
+当前版本聚焦最小可运行闭环：
+
+- 知识库管理
+- TXT / Markdown / PDF 文档上传与摄取
+- 文档解析、分块、Embedding、Milvus 向量入库
+- 基于单知识库的向量检索
+- OpenAI-compatible LLM 流式问答
+- FastAPI SSE 接口
+- Vue 3 前端控制台
+
+## 技术栈
+
+后端：
+
+- Python 3.11+
+- FastAPI + Uvicorn
+- Pydantic v2
+- SQLAlchemy 2.0 async + asyncpg + Alembic
+- PostgreSQL 15
+- Milvus Standalone
+- OpenAI-compatible LLM / Embedding Client
+- sse-starlette
+- pytest / pytest-asyncio
+- ruff / mypy
+- uv
+
+前端：
+
+- Vue 3
+- Vite
+- TypeScript
+- Pinia
+- Vue Router
+- Ant Design Vue
+- lucide-vue-next
+
+## 项目结构
+
+```text
+.
+├── alembic/                  # 数据库迁移
+├── configs/                  # 应用配置与 Prompt 模板
+├── docs/
+│   └── THIRD_PARTY_NOTICES.md
+├── scripts/                  # 辅助脚本
+├── src/ragent/
+│   ├── api/                  # FastAPI 路由层
+│   ├── schemas/              # Pydantic API Schema
+│   ├── service/              # 业务编排
+│   ├── domain/               # 纯领域对象
+│   ├── persistence/          # ORM Model 与 Repository
+│   ├── infra_ai/             # LLM / Embedding / Rerank 抽象与实现
+│   ├── rag/                  # 检索、向量库、Prompt、Memory
+│   ├── ingestion/            # 文档解析、分块、摄取 Pipeline
+│   └── framework/            # 配置、DB、异常、SSE、Trace、Middleware
+├── tests/                    # 单元测试与集成测试
+└── web/                      # Vue 前端控制台
+```
 
 ## 快速开始
 
-### 1. 启动依赖
+### 1. 安装后端依赖
 
 ```bash
-make deps-up   # docker compose up -d（PostgreSQL + Milvus）
+uv sync
 ```
 
-无 Docker 环境时可使用本地 PostgreSQL + milvus-lite：
+### 2. 启动基础设施
 
 ```bash
-# PostgreSQL：apt 安装并启动后创建库
-sudo apt-get install -y postgresql postgresql-contrib
-sudo pg_ctlcluster 16 main start
-sudo -u postgres createuser ragent --createdb --login --password
-sudo -u postgres psql -c "ALTER USER ragent PASSWORD 'ragent';"
-sudo -u postgres createdb -O ragent ragent
-
-# Milvus-lite（pip 包，无需 Docker）
-uv pip install milvus-lite
-export RAGENT__MILVUS__URI=./milvus_lite.db
+docker compose up -d
 ```
 
-### 2. 安装依赖
-
-```bash
-make sync      # uv sync
-```
+该命令会启动 PostgreSQL 和 Milvus。
 
 ### 3. 配置环境变量
 
-```bash
-export QWEN_API_KEY=your-qwen-api-key        # LLM / Embedding API Key（必需）
-export RAGENT__MILVUS__URI=http://localhost:19530   # 或 ./milvus_lite.db
-```
-
-### 4. 数据库迁移
+复制环境变量样例：
 
 ```bash
-make migrate   # alembic upgrade head
+cp .env.example .env
 ```
 
-### 5. 启动服务
+至少需要配置：
 
 ```bash
-make dev       # uvicorn ragent.main:app --reload
+QWEN_API_KEY=your-qwen-api-key
+RAGENT__DB__URL=postgresql+asyncpg://ragent:ragent@localhost:5432/ragent
+RAGENT__MILVUS__URI=http://localhost:19530
 ```
 
-服务默认监听 `http://localhost:8000`，访问 `GET /health` 查看依赖连通性。
+如果使用其他 OpenAI-compatible 服务，可同步调整 `QWEN_BASE_URL`、`LLM_MODEL`、`EMBEDDING_MODEL` 等变量。
 
-## API 接口示例
+### 4. 执行数据库迁移
 
-### 健康检查
+```bash
+uv run alembic upgrade head
+```
+
+或使用：
+
+```bash
+make migrate
+```
+
+### 5. 启动后端
+
+```bash
+make dev
+```
+
+后端默认地址：
+
+```text
+http://localhost:8000
+```
+
+健康检查：
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-### 知识库管理
-
-```bash
-# 创建知识库
-curl -X POST http://localhost:8000/api/v1/knowledge-bases \
-  -H "Content-Type: application/json" \
-  -d '{"name":"my-kb","embedding_dim":1024}'
-
-# 列出知识库
-curl "http://localhost:8000/api/v1/knowledge-bases?page=1&page_size=10"
-
-# 查询知识库
-curl http://localhost:8000/api/v1/knowledge-bases/{kb_id}
-
-# 编辑知识库（重命名 / 修改描述 / 修改状态，部分更新）
-curl -X PATCH http://localhost:8000/api/v1/knowledge-bases/{kb_id} \
-  -H "Content-Type: application/json" \
-  -d '{"name":"new-kb-name","description":"updated description"}'
-
-# 删除知识库（软删除：归档 + 尝试清理向量库 collection）
-curl -X DELETE http://localhost:8000/api/v1/knowledge-bases/{kb_id}
-```
-
-- `PATCH` 支持部分更新：仅传入的字段（`name` / `description` / `status`）会被修改；名称变更时会校验唯一性，重名返回 `code=10101`，知识库不存在返回 `404`（`code=10404`）。
-- `DELETE` 为软删除：将知识库状态置为 `archived`，列表与详情接口不再返回；同时尝试删除对应 Milvus collection，删除失败仅记录日志、不回滚数据库。
-
-### 文档摄取
-
-```bash
-# 上传文档（支持 txt/md/pdf）
-curl -X POST http://localhost:8000/api/v1/documents/upload \
-  -F "file=@doc.txt" \
-  -F "kb_id={kb_id}"
-
-# 查询文档状态（status: pending → completed/failed）
-curl http://localhost:8000/api/v1/documents/{document_id}
-```
-
-### 知识库文件管理（重命名 / 删除 / 重新处理）
-
-```bash
-# 重命名文档（同一知识库内文件名唯一；重名返回 code=10301，文档不存在返回 404）
-curl -X PATCH http://localhost:8000/api/v1/knowledge-bases/{kb_id}/documents/{document_id} \
-  -H "Content-Type: application/json" \
-  -d '{"filename":"新的文件名.md"}'
-
-# 删除文档（同时删除对应向量索引 + 分块元数据 + 文档记录，递减知识库文档计数）
-curl -X DELETE http://localhost:8000/api/v1/knowledge-bases/{kb_id}/documents/{document_id}
-
-# 重新处理文档（删除旧向量与旧分块，复用已存储分块内容重新 embedding + 索引）
-curl -X POST http://localhost:8000/api/v1/knowledge-bases/{kb_id}/documents/{document_id}/reprocess
-```
-
-- `PATCH` 重命名：文件名前后空格会被 trim，非空校验失败返回 422；同一知识库内重名返回 `code=10301`；文档不存在或不属于该知识库返回 `404`（`code=10304`）。
-- `DELETE` 删除：必须同时删除 Milvus 向量索引（按 `document_id` 过滤），否则 RAG 检索仍会命中已删除文件内容；向量库删除失败为 best-effort（仅记录日志，不阻断 DB 删除）。
-- `POST /reprocess` 重新处理：原始上传文件未持久化，因此复用 `t_document_chunk.content` 重新 embedding + 索引；若文档无分块内容（未完成分块阶段）返回 `code=10302` 并提示重新上传。
-
-### 流式问答（SSE）
-
-```bash
-curl -N -X POST http://localhost:8000/api/v1/chat/sse \
-  -H "Content-Type: application/json" \
-  -d '{"session_id":"sess-001","kb_id":"{kb_id}","question":"你的问题"}'
-```
-
-SSE 事件流：
-
-```
-event: start
-data: {"trace_id": "xxx"}
-
-event: delta
-data: {"content": "回答片段"}
-
-event: done
-data: {"trace_id": "xxx", "finish_reason": "stop"}
-```
-
-## 开发命令
-
-| 命令 | 说明 |
-|---|---|
-| `make lint` | ruff 检查 + 格式校验 |
-| `make format` | ruff 自动格式化 |
-| `make typecheck` | mypy 类型检查 |
-| `make test` | 全部测试 |
-| `make test-unit` | 单元测试 |
-| `make test-integration` | 集成测试 |
-| `make migrate-new msg="xxx"` | 生成新迁移 |
-
-## 验收命令
-
-```bash
-make lint           # ruff check + ruff format --check
-make typecheck      # mypy src/ragent
-make test           # pytest 全部
-uv run pytest tests/unit -v          # 单元测试（无外部依赖）
-uv run pytest tests/integration -v   # 集成测试（需 PG + Milvus）
-```
-
-集成测试无 QWEN_API_KEY 时使用 Mock Embedding/LLM，无需真实 API 调用。
-
-## 前端
-
-前端位于 `web/`，独立 `package.json`，技术栈：Vue 3 + Vite + TypeScript + Pinia + Ant Design Vue 4 + lucide-vue-next，所有用户可见文案为简体中文，整体采用 Yuxi 风格的知识库产品工作台视觉（蓝绿色主色 + 浅灰背景 + 白色面板 + 细边框）。
-
-### 前端功能
-
-当前前端已实现：
-
-- 中文知识库产品工作台（左侧轻量导航 + 顶部标题区 + 主内容区，蓝绿色主题）
-- 仪表盘健康检查（PostgreSQL / Milvus / 追踪编号 / 检查时间）
-- API Base URL 设置与连接测试（写入 localStorage，测试连接调用 `GET /health`）
-- 知识库列表（Yuxi 风格卡片网格 + 状态标签 + 文档数量 + 向量维度 + 创建时间 + 进入详情入口）
-- 新建知识库（弹窗表单 + 校验，Embedding 模型与维度只读对齐后端）
-- 编辑知识库（重命名 / 修改描述 / 修改状态，弹窗确认）
-- 删除知识库（软删除确认弹窗）
-- 知识库详情（沉浸式布局：隐藏左侧菜单 + 64px Header + 横向功能 Tab）
-- 横向功能 Tab（文件管理 / 检索测试 / 聊天问答 三个真实功能；知识图谱 / 知识导图 / RAG 评估 / 评估基准 等暂缓项已隐藏，不在 UI 暴露入口）
-- 文件列表（Yuxi 风格行列表：文件类型图标 + 文件名 + 状态徽标 + 细分隔线，非后台表格）
-- 文档上传（Yuxi 风格 dropzone + TXT/Markdown/PDF + 50MB 校验 + 重复文件名检测 + 上传后刷新并轮询）
-- 文档状态轮询（pending → parsing → chunking → embedding → indexing → completed/failed，每 3 秒轮询，全终态自动停止）
-- 文档重命名（同一知识库内重名校验）
-- 文档删除（确认弹窗，向量索引按后端逻辑清理）
-- 文档重新处理（终态可触发，非终态禁用）
-- 检索测试（复用 `POST /api/v1/chat/sse`，左右分栏展示回答与引用来源）
-- 聊天问答（顶层 `/chat` 全局聊天页 + 知识库详情 Chat Tab，复用同一 `RagChatPanel`）
-- POST SSE 流式输出（fetch + ReadableStream，禁用 EventSource）
-- citations / references 前端统一映射（后端 done 事件可能下发 citations，前端映射为 `UiChatReference[]`）
-- 引用来源卡片展示（多条卡片 + 3 位小数相似度 + 内容摘要折叠 + 空状态"暂无引用来源"）
-- trace_id 展示（start / done / error 事件携带时显示）
-- finish_reason 展示（done 事件携带时显示）
-- 停止生成（AbortController 中断 SSE）
-- 错误提示统一为中文 + 追踪编号
-
-### 启动方式
-
-后端：
-
-```bash
-make deps-up      # docker compose up -d（PostgreSQL + Milvus）
-make sync         # uv sync
-export QWEN_API_KEY=your-qwen-api-key
-make migrate      # alembic upgrade head
-make dev          # uvicorn ragent.main:app --reload
-```
-
-前端：
+### 6. 启动前端
 
 ```bash
 cd web
@@ -217,91 +134,213 @@ npm install
 npm run dev
 ```
 
-访问：
+前端默认地址：
 
 ```text
-前端：http://localhost:5173
-后端 API：http://localhost:8000
+http://localhost:5173
 ```
 
-后端已配置 CORS 允许 `http://localhost:5173` 与 `http://127.0.0.1:5173`，前端开发期无需额外代理。
+前端设置页可以修改后端 API 地址，默认使用 `http://localhost:8000`。
 
-### 演示流程
+## 常用命令
 
-1. 启动后端与前端（见上方"启动方式"）。
-2. 浏览器打开 `http://localhost:5173`，进入「仪表盘」确认 PostgreSQL 与 Milvus 状态为"正常"。
-3. 进入「知识库」，点击「新建知识库」，填写名称后创建。
-4. 点击知识库卡片进入详情页。
-5. 在「文件管理」标签页点击「上传文档」，选择 TXT/Markdown/PDF 文件上传。
-6. 等待文档状态从"待处理"流转到"已完成"（页面每 3 秒自动刷新）。
-7. 切换到「检索测试」标签页，输入查询内容，点击「开始检索」，查看流式回答与右侧引用来源。
-8. 切换到「聊天问答」标签页，输入问题，点击「发送」，查看流式回答与追踪编号。
-9. 或进入左侧菜单「聊天问答」，选择知识库后发起全局问答。
-10. 回答区域的「追踪编号」可用于问题定位反馈给后端。
+```bash
+make sync              # 安装后端依赖
+make deps-up           # 启动 PostgreSQL + Milvus
+make deps-down         # 停止基础设施
+make migrate           # 执行 Alembic 迁移
+make dev               # 启动 FastAPI 开发服务
+make lint              # ruff check + format check
+make format            # ruff format
+make typecheck         # mypy
+make test              # 全量测试
+make test-unit         # 单元测试
+make test-integration  # 集成测试
+```
 
-### 注意事项
+前端命令：
 
-- 前端不会保存 API Key / 数据库密码 / 模型密钥。
-- 前端只调用 FastAPI 后端（`/health`、`/api/v1/*`），不直接访问 PostgreSQL、Milvus、Embedding API、LLM API。
-- 后端 SSE 是 POST 接口（`POST /api/v1/chat/sse`），因此前端使用 `fetch + ReadableStream` 解析事件流，不使用 `EventSource`（EventSource 仅支持 GET）。
-- API Base URL 保存在 localStorage（key：`ragent.apiBaseUrl`），默认 `http://localhost:8000`，可在「设置」页修改并测试连接。
-- 后端 `done` 事件可能不携带引用来源，此时前端显示"暂无引用来源"，不伪造数据。
+```bash
+cd web
+npm run dev
+npm run build
+npm run preview
+npm run type-check
+```
 
-### 前端 UI 参考
+## API 示例
 
-本项目在轻量 RAG-only 范围内复制并改造了 Yuxi v0.7.0 的部分前端布局、组件、样式与交互实现，用于实现知识库、文档管理、检索测试、聊天问答、设置与健康检查等已实现功能的 UI 对齐。本项目不复制或启用 Yuxi 的 MCP、Skills、SubAgents、沙盒、LangGraph、多租户、权限、JWT、知识图谱、知识导图、RAG 评估、模型路由、Rerank 等重功能。第三方授权说明见 [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md)。
+### 创建知识库
 
-### 未实现功能
+```bash
+curl -X POST http://localhost:8000/api/v1/knowledge-bases \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "产品文档库",
+    "description": "用于演示的知识库",
+    "embedding_model": "text-embedding-v3",
+    "embedding_dim": 1024,
+    "chunk_strategy": "recursive",
+    "chunk_size": 512,
+    "chunk_overlap": 64
+  }'
+```
 
-前端 MVP 未实现以下功能（暂缓项）：
+### 查询知识库列表
+
+```bash
+curl "http://localhost:8000/api/v1/knowledge-bases?page=1&page_size=20"
+```
+
+### 上传文档
+
+```bash
+curl -X POST http://localhost:8000/api/v1/documents/upload \
+  -F "kb_id={kb_id}" \
+  -F "file=@README.md"
+```
+
+支持的文件类型：
+
+- `.txt`
+- `.md`
+- `.pdf`
+
+### 查询文档状态
+
+```bash
+curl http://localhost:8000/api/v1/documents/{document_id}
+```
+
+文档状态流转：
+
+```text
+pending -> parsing -> chunking -> embedding -> indexing -> completed
+                                                        -> failed
+```
+
+### 流式问答
+
+```bash
+curl -N -X POST http://localhost:8000/api/v1/chat/sse \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "demo-session-001",
+    "kb_id": "{kb_id}",
+    "question": "这份文档主要讲了什么？",
+    "top_k": 5,
+    "temperature": 0.0,
+    "top_p": 1.0
+  }'
+```
+
+SSE 事件类型：
+
+```text
+start  -> {"trace_id": "..."}
+delta  -> {"content": "..."}
+done   -> {"trace_id": "...", "finish_reason": "stop"}
+error  -> {"trace_id": "...", "code": 30001, "message": "..."}
+```
+
+## 前端功能
+
+当前前端提供一个轻量 RAG 控制台：
+
+- 仪表盘与依赖健康检查
+- 后端 API 地址配置
+- 知识库列表、创建、编辑、删除
+- 知识库详情页
+- 文档上传、状态轮询、重命名、删除、重新处理
+- 检索测试
+- 聊天问答
+- POST SSE 流式输出
+- Trace ID 展示
+- 引用来源展示
+
+## 配置说明
+
+主配置文件位于：
+
+```text
+configs/config.yaml
+```
+
+配置可通过环境变量覆盖。环境变量命名规则：
+
+```text
+RAGENT__{SECTION}__{KEY}
+```
+
+示例：
+
+```bash
+RAGENT__DB__URL=postgresql+asyncpg://ragent:ragent@localhost:5432/ragent
+RAGENT__MILVUS__URI=http://localhost:19530
+```
+
+密钥不应写入配置文件或数据库明文，运行时从环境变量读取。
+
+## 测试
+
+单元测试不依赖真实 PostgreSQL、Milvus 或 LLM 服务：
+
+```bash
+make test-unit
+```
+
+集成测试需要先启动依赖：
+
+```bash
+make deps-up
+make test-integration
+```
+
+完整检查：
+
+```bash
+make lint
+make typecheck
+make test
+```
+
+## MVP 暂不包含
+
+当前开源版本不包含以下能力：
 
 - MCP 工具集成
-- Skills / SubAgents / Sandbox / LangGraph 多智能体编排
-- 意图识别 / 查询改写 / 多路检索
-- Rerank 模型配置界面
-- 三态熔断 / 限流 / 模型路由降级
-- JWT / 登录认证 / 用户权限 / 多租户
-- 知识图谱 / 知识导图 / RAG 评估 / 评估基准
-- 对话标题自动生成
-- 会话列表 / 历史会话管理 / 多轮复杂会话切换（当前聊天消息仅保存在页面内存，刷新后丢失）
-- Markdown 富文本渲染（当前回答为纯文本 pre-wrap 展示）
-- Office / 图片 / CSV / JSON / HTML 等更多文件格式解析
-- 管理后台（除知识库 / 文档 CRUD 外）
-- 暗色主题 / 国际化（i18n）/ 移动端适配
+- 意图识别
+- 查询改写
+- 多路检索
+- Rerank 模型调用
+- 三态熔断器
+- 队列式限流
+- JWT 认证
+- 复杂 Trace Span 树与可视化追踪
+- Memory summarize 摘要压缩
+- Celery / Dramatiq / Redis Queue
+- 管理后台
+- 对话标题生成
+- PPT / HTML / unstructured 解析
 
-### 前端路由
+## 开源发布注意事项
 
-| 路径 | 说明 |
-|---|---|
-| `/` | 仪表盘（健康检查） |
-| `/dashboard` | 重定向到 `/` |
-| `/knowledge-bases` | 知识库列表 |
-| `/knowledge-bases/:kbId` | 知识库详情，默认重定向到 `/files` |
-| `/knowledge-bases/:kbId/files` | 文件管理 Tab |
-| `/knowledge-bases/:kbId/retrieval` | 检索测试 Tab |
-| `/knowledge-bases/:kbId/chat` | 聊天问答 Tab |
-| `/chat` | 顶层全局聊天页（需选择知识库） |
-| `/settings` | 设置（API Base URL + 测试连接） |
+仓库应只保留源码、迁移、测试、配置模板、Prompt 模板、前端工程与必要文档。以下内容不应提交：
 
-左侧导航仅 4 项：仪表盘 / 知识库 / 聊天问答 / 设置。暂缓功能入口未在 UI 暴露。
+- `.env`
+- `.venv/`
+- `node_modules/`
+- `web/dist/`
+- `milvus_lite.db/`
+- `__pycache__/`
+- `.pytest_cache/`
+- `.mypy_cache/`
+- `.ruff_cache/`
+- 本地 IDE 配置
+- 本地运行日志
 
-## 项目结构
+第三方来源与授权说明见 [docs/THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md)。
 
-```
-src/ragent/
-├── api/            # FastAPI 路由层（只调 service）
-├── schemas/        # Pydantic v2 API Schema（顶层独立）
-├── service/        # 业务编排中心
-├── domain/         # 纯领域（enums / dto / value_objects）
-├── persistence/    # ORM Model + Repository
-├── infra_ai/       # LLM / Embedding / Rerank 客户端
-├── rag/            # 检索 / 向量库 / Prompt / Memory
-├── ingestion/      # 文档解析 / 分块 / Pipeline
-└── framework/      # 通用基础设施（config / db / trace / middleware）
-```
+## License
 
-详细设计见 `docs/`，规则约束见 `.trae/rules/`，协作指引见 `AGENTS.md`。
-
-## 开源仓库说明
-
-本仓库保留完整 MVP 源码、迁移、测试、配置模板和文档；不应提交本地运行数据、依赖安装目录、缓存、构建产物或真实密钥。使用 milvus-lite 时生成的 `milvus_lite.db/` 属于本地数据目录，请勿纳入版本管理。
+本项目使用 MIT License，详见 [LICENSE](LICENSE)。

@@ -1,7 +1,7 @@
 [project]
 name = "ragent"
 version = "0.1.0"
-description = "Ragent-Py: Python 复刻版企业级 Agentic RAG 平台"
+description = "Ragent-Py: Python enterprise Agentic RAG MVP"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
