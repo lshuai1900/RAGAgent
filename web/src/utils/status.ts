@@ -6,11 +6,15 @@
  * - completed：已完成（success）
  * - failed：失败（error）
  * 另提供 4 分组（等待处理/处理中/已完成/处理失败），用于状态统计卡片与状态过滤。
+ *
+ * Step 5 新增 documentYuxiStatus：用于 Yuxi 风格文件列表的状态徽标，
+ * 文案与 YuxiStatusBadge 对齐（待处理 / 解析中 / 分块中 / 向量化中 / 索引中 / 已完成 / 失败 / 未知）。
  */
 import {
   DocumentStatus,
   type DocumentStatusValue,
 } from '@/types/enums'
+import type { YuxiStatusKind } from '@/components/yuxi/YuxiStatusBadge.vue'
 
 /** 文档状态 → 中文文案 */
 export function documentStatusText(status: string): string {
@@ -161,5 +165,43 @@ export function documentStatusBadgeKind(status: string): StatusBadgeKind {
       return 'processing'
     case 'pending':
       return 'pending'
+  }
+}
+
+/**
+ * Step 5：Yuxi 风格文件列表状态徽标映射。
+ *
+ * - pending → processing，文案"待处理"
+ * - parsing/chunking/embedding/indexing → processing，文案"解析中/分块中/向量化中/索引中"
+ * - completed → success，文案"已完成"
+ * - failed → error，文案"失败"
+ * - 其他/null → default，文案"未知"
+ *
+ * 注意：与 documentStatusText 的"入库中/未知状态"文案不同，本函数严格对齐
+ * Step 5 验收点 8（待处理/解析中/分块中/向量化中/索引中/已完成/失败/未知）。
+ */
+export interface DocumentYuxiStatus {
+  kind: YuxiStatusKind
+  label: string
+}
+
+export function documentYuxiStatus(status: string): DocumentYuxiStatus {
+  switch (status as DocumentStatusValue) {
+    case DocumentStatus.PENDING:
+      return { kind: 'processing', label: '待处理' }
+    case DocumentStatus.PARSING:
+      return { kind: 'processing', label: '解析中' }
+    case DocumentStatus.CHUNKING:
+      return { kind: 'processing', label: '分块中' }
+    case DocumentStatus.EMBEDDING:
+      return { kind: 'processing', label: '向量化中' }
+    case DocumentStatus.INDEXING:
+      return { kind: 'processing', label: '索引中' }
+    case DocumentStatus.COMPLETED:
+      return { kind: 'success', label: '已完成' }
+    case DocumentStatus.FAILED:
+      return { kind: 'error', label: '失败' }
+    default:
+      return { kind: 'default', label: '未知' }
   }
 }

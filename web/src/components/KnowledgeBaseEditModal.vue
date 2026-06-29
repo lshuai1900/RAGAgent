@@ -9,7 +9,7 @@
  * 删除成功后由父组件跳转回列表页。
  */
 import { reactive, ref, watch } from 'vue'
-import { Modal, Form, FormItem, Input, Textarea, Button, message } from 'ant-design-vue'
+import { Modal, Form, FormItem, Input, Textarea, Button, Select, message } from 'ant-design-vue'
 import type { Rule } from 'ant-design-vue/es/form'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { ApiError, NetworkError } from '@/api/client'
@@ -34,12 +34,19 @@ const kbStore = useKnowledgeBaseStore()
 interface FormState {
   name: string
   description: string
+  status: 'active' | 'archived'
 }
 
-const formState = reactive<FormState>({ name: '', description: '' })
+const formState = reactive<FormState>({ name: '', description: '', status: 'active' })
 const formRef = ref()
 const submitting = ref<boolean>(false)
 const deleting = ref<boolean>(false)
+
+/** 状态选项 */
+const statusOptions = [
+  { value: 'active', label: '启用' },
+  { value: 'archived', label: '已归档' },
+]
 
 /** 名称校验规则 */
 const rules: Record<string, Rule[]> = {
@@ -50,13 +57,15 @@ const rules: Record<string, Rule[]> = {
   description: [{ max: 512, message: '描述最长 512 个字符', trigger: 'blur' }],
 }
 
-/** 弹窗打开时回填当前知识库名称与描述 */
+/** 弹窗打开时回填当前知识库名称、描述与状态 */
 watch(
   () => props.open,
   (open) => {
     if (open) {
       formState.name = props.knowledgeBase?.name ?? ''
       formState.description = props.knowledgeBase?.description ?? ''
+      const currentStatus = props.knowledgeBase?.status
+      formState.status = currentStatus === 'archived' ? 'archived' : 'active'
       formRef.value?.clearValidate?.()
     }
   },
@@ -106,6 +115,7 @@ async function handleSubmit(): Promise<void> {
     const kb = await kbStore.updateKb(kbId, {
       name: trimmedName,
       description: formState.description.trim() || null,
+      status: formState.status,
     })
     message.success('知识库已更新')
     emit('updated', kb)
@@ -128,7 +138,7 @@ function handleDelete(): void {
 
   Modal.confirm({
     title: '删除知识库',
-    content: `确定要删除「${kbName}」吗？删除后将归档，并尝试清理向量库，且无法在列表中再次看到。`,
+    content: `即将删除知识库「${kbName}」。删除后该知识库将无法在列表中继续使用，相关文档和向量索引会按后端逻辑清理。此操作不可撤销，是否继续？`,
     okText: '删除',
     okType: 'danger',
     cancelText: '取消',
@@ -192,8 +202,11 @@ function mapDeleteErrorMessage(err: unknown): string {
           :rows="2"
         />
       </FormItem>
+      <FormItem label="状态" name="status">
+        <Select v-model:value="formState.status" :options="statusOptions" />
+      </FormItem>
       <div class="kb-edit-form__tip">
-        仅名称与描述可修改；Embedding 模型、向量维度、分块策略创建后不可变更。
+        仅名称、描述与状态可修改；Embedding 模型、向量维度、分块策略创建后不可变更。
       </div>
 
       <!-- 危险操作区 -->

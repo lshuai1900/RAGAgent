@@ -1,21 +1,22 @@
 <script setup lang="ts">
 /**
- * 知识库列表页（Yuxi 风格 1:1 复刻）
+ * 知识库列表页（Yuxi 风格基座组件）
  *
- * 视觉规格（参考 Yuxi DataBaseView，不复制源码）：
- * - PageHeader：sticky + 半透明白 + blur，标题"知识库" + loading 条
- * - PageShoulder：搜索框 + 新建知识库按钮
- * - 卡片网格：repeat(auto-fill, minmax(280px, 1fr))，gap:16px，padding:16px var(--page-padding)
- * - 空状态：min-height:300px，padding:72px 20px，居中，48×48 图标框，18px/600 标题，14px/#697070 描述
+ * - YuxiPageHeader：标题 + 描述 + 右侧刷新/新建按钮
+ * - 内容区顶部：搜索框（Yuxi PageShoulder 风格）
+ * - 状态：loading / error / empty / data
+ * - 卡片网格：自适应（大屏 3+ / 中屏 2 / 小屏 1）
+ * - 调用真实 GET /api/v1/knowledge-bases，失败显示中文错误
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { Button, Spin, Alert } from 'ant-design-vue'
-import { Plus, Database } from 'lucide-vue-next'
+import { Button, Spin, Input } from 'ant-design-vue'
+import { Plus, RefreshCw, Search, Database, AlertCircle } from 'lucide-vue-next'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
-import PageHeader from '@/components/PageHeader.vue'
-import PageShoulder from '@/components/PageShoulder.vue'
+import YuxiPageHeader from '@/components/yuxi/YuxiPageHeader.vue'
+import YuxiCard from '@/components/yuxi/YuxiCard.vue'
+import YuxiEmptyState from '@/components/yuxi/YuxiEmptyState.vue'
 import KnowledgeBaseCard from '@/components/KnowledgeBaseCard.vue'
 import KnowledgeBaseCreateModal from '@/components/KnowledgeBaseCreateModal.vue'
 
@@ -28,15 +29,20 @@ const searchQuery = ref<string>('')
 
 const isLoading = computed(() => listState.value === 'loading')
 const isError = computed(() => listState.value === 'error' && !isLoading.value)
-const isEmpty = computed(() => listState.value === 'success' && filteredList.value.length === 0 && !searchQuery.value)
-const isSearchEmpty = computed(() => listState.value === 'success' && filteredList.value.length === 0 && !!searchQuery.value)
+const isEmpty = computed(
+  () => listState.value === 'success' && filteredList.value.length === 0 && !searchQuery.value
+)
+const isSearchEmpty = computed(
+  () => listState.value === 'success' && filteredList.value.length === 0 && !!searchQuery.value
+)
 
 /** 按搜索关键字过滤 */
 const filteredList = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return list.value
   return list.value.filter(
-    (kb) => kb.name.toLowerCase().includes(q) || (kb.description ?? '').toLowerCase().includes(q),
+    (kb) =>
+      kb.name.toLowerCase().includes(q) || (kb.description ?? '').toLowerCase().includes(q)
   )
 })
 
@@ -49,7 +55,7 @@ function openCreate(): void {
 }
 
 function enterDetail(kbId: string): void {
-  router.push(`/knowledge-bases/${kbId}`)
+  void router.push(`/knowledge-bases/${kbId}`)
 }
 
 onMounted(() => {
@@ -59,64 +65,89 @@ onMounted(() => {
 
 <template>
   <div class="kb-list-view">
-    <!-- 顶部标题栏 -->
-    <PageHeader
+    <YuxiPageHeader
       title="知识库"
-      subtitle="管理用于 RAG 问答的知识库"
-      :loading="isLoading"
-    />
-
-    <!-- 肩部操作栏：搜索 + 新建 -->
-    <PageShoulder
-      v-model:search="searchQuery"
-      search-placeholder="搜索知识库..."
+      description="创建和管理知识库，上传文档后构建向量索引并进行 RAG 问答"
+      bordered
     >
-      <template #actions>
+      <template #extra>
+        <Button :loading="isLoading" @click="refresh">
+          <template #icon><RefreshCw :size="14" /></template>
+          刷新
+        </Button>
         <Button type="primary" @click="openCreate">
-          <template #icon><Plus :size="16" /></template>
+          <template #icon><Plus :size="14" /></template>
           新建知识库
         </Button>
       </template>
-    </PageShoulder>
+    </YuxiPageHeader>
+
+    <!-- 搜索栏（Yuxi PageShoulder 风格） -->
+    <div class="kb-list-view__shoulder">
+      <div class="kb-list-view__shoulder-left">
+        <Input
+          v-model:value="searchQuery"
+          placeholder="搜索知识库..."
+          allow-clear
+          class="kb-list-view__search"
+        >
+          <template #prefix><Search :size="14" class="kb-list-view__search-icon" /></template>
+        </Input>
+      </div>
+      <div v-if="listState === 'success' && total > 0" class="kb-list-view__shoulder-stat">
+        共 {{ total }} 个知识库
+      </div>
+    </div>
 
     <!-- 内容区 -->
     <div class="kb-list-view__content">
-      <Alert
-        v-if="isError"
-        type="error"
-        show-icon
-        :message="listError || '加载知识库列表失败'"
-        class="kb-list-view__alert"
-      />
-
-      <!-- 加载中 -->
+      <!-- 加载中（首次加载） -->
       <div v-if="isLoading && list.length === 0" class="kb-list-view__loading">
         <Spin tip="正在加载知识库..." size="large" />
       </div>
 
+      <!-- 错误状态 -->
+      <YuxiCard v-else-if="isError" flat>
+        <template #default>
+          <div class="kb-list-view__error">
+            <div class="kb-list-view__error-icon">
+              <AlertCircle :size="36" />
+            </div>
+            <div class="kb-list-view__error-title">加载知识库列表失败</div>
+            <div class="kb-list-view__error-desc">
+              {{ listError || '请检查 API 地址或服务状态' }}
+            </div>
+            <Button type="primary" :loading="isLoading" @click="refresh">
+              <template #icon><RefreshCw :size="14" /></template>
+              重新加载
+            </Button>
+          </div>
+        </template>
+      </YuxiCard>
+
       <!-- 空状态：暂无知识库 -->
-      <div v-else-if="isEmpty" class="kb-list-view__empty">
-        <div class="kb-list-view__empty-icon">
-          <Database :size="24" :stroke-width="1.8" />
-        </div>
-        <div class="kb-list-view__empty-title">暂无知识库</div>
-        <div class="kb-list-view__empty-desc">请先新建一个知识库，开始管理用于 RAG 问答的知识内容。</div>
-        <div class="kb-list-view__empty-actions">
+      <YuxiEmptyState
+        v-else-if="isEmpty"
+        title="暂无知识库"
+        description="请先新建一个知识库，开始管理用于 RAG 问答的知识内容。"
+        :icon="Database"
+      >
+        <template #action>
           <Button type="primary" @click="openCreate">
-            <template #icon><Plus :size="16" /></template>
+            <template #icon><Plus :size="14" /></template>
             新建知识库
           </Button>
-        </div>
-      </div>
+        </template>
+      </YuxiEmptyState>
 
       <!-- 搜索无结果 -->
-      <div v-else-if="isSearchEmpty" class="kb-list-view__empty">
-        <div class="kb-list-view__empty-icon">
-          <Database :size="24" :stroke-width="1.8" />
-        </div>
-        <div class="kb-list-view__empty-title">未找到匹配的知识库</div>
-        <div class="kb-list-view__empty-desc">没有名称或描述包含"{{ searchQuery }}"的知识库。</div>
-      </div>
+      <YuxiEmptyState
+        v-else-if="isSearchEmpty"
+        title="未找到匹配的知识库"
+        :description="`没有名称或描述包含“${searchQuery}”的知识库。`"
+        :icon="Search"
+        size="compact"
+      />
 
       <!-- 卡片网格 -->
       <div v-else-if="filteredList.length > 0" class="kb-list-view__grid">
@@ -127,11 +158,6 @@ onMounted(() => {
           @enter="enterDetail"
         />
       </div>
-    </div>
-
-    <!-- 列表统计 -->
-    <div v-if="listState === 'success' && total > 0" class="kb-list-view__footer">
-      共 {{ total }} 个知识库
     </div>
 
     <!-- 新建知识库弹窗 -->
@@ -146,13 +172,65 @@ onMounted(() => {
   min-height: 100%;
 }
 
-.kb-list-view__content {
-  padding: 16px var(--page-padding);
-  min-height: 200px;
+/* 搜索栏 */
+.kb-list-view__shoulder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px var(--kb-page-padding, 24px) 0;
 }
 
-.kb-list-view__alert {
-  margin-bottom: 16px;
+.kb-list-view__shoulder-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kb-list-view__search {
+  width: 280px;
+  display: flex;
+  align-items: center;
+}
+
+.kb-list-view__search :deep(.ant-input-affix-wrapper) {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--yuxi-gray-150);
+  border-radius: var(--yuxi-radius);
+  background-color: var(--yuxi-gray-0);
+}
+
+.kb-list-view__search :deep(.ant-input-affix-wrapper:hover),
+.kb-list-view__search :deep(.ant-input-affix-wrapper:focus),
+.kb-list-view__search :deep(.ant-input-affix-wrapper.ant-input-affix-wrapper-focused) {
+  border-color: var(--yuxi-gray-200);
+  box-shadow: none;
+}
+
+.kb-list-view__search :deep(.ant-input-prefix) {
+  margin-right: 8px;
+  color: var(--yuxi-gray-400);
+}
+
+.kb-list-view__search :deep(.ant-input) {
+  height: 100%;
+  background-color: transparent;
+}
+
+.kb-list-view__search-icon {
+  color: var(--yuxi-gray-400);
+}
+
+.kb-list-view__shoulder-stat {
+  font-size: 13px;
+  color: var(--yuxi-gray-500);
+}
+
+/* 内容区 */
+.kb-list-view__content {
+  padding: 16px var(--kb-page-padding, 24px);
+  min-height: 200px;
 }
 
 .kb-list-view__loading {
@@ -162,60 +240,62 @@ onMounted(() => {
   min-height: 300px;
 }
 
-/* 空状态（Yuxi ResourceEmptyState 风格） */
-.kb-list-view__empty {
+/* 错误状态 */
+.kb-list-view__error {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  min-height: 300px;
-  padding: 72px 20px;
+  padding: 40px 0 24px;
   text-align: center;
 }
 
-.kb-list-view__empty-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--kb-radius);
+.kb-list-view__error-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--kb-primary-bg);
-  border: 1px solid var(--kb-border);
-  color: var(--kb-primary-hover);
-  margin-bottom: 8px;
+  background-color: var(--yuxi-error-50);
+  color: var(--yuxi-error-700);
+  margin-bottom: 6px;
 }
 
-.kb-list-view__empty-title {
-  font-size: 18px;
+.kb-list-view__error-title {
+  font-size: 15px;
   font-weight: 600;
-  color: var(--kb-text-title);
+  color: var(--yuxi-gray-900);
 }
 
-.kb-list-view__empty-desc {
-  font-size: 14px;
-  color: var(--kb-text-tertiary);
-  max-width: 360px;
-  line-height: 1.6;
-}
-
-.kb-list-view__empty-actions {
-  margin-top: 20px;
-  display: flex;
-  gap: 8px;
+.kb-list-view__error-desc {
+  font-size: 13px;
+  color: var(--yuxi-gray-600);
+  margin-bottom: 6px;
+  text-align: center;
+  max-width: 480px;
+  word-break: break-all;
 }
 
 /* 卡片网格：自适应 */
 .kb-list-view__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
 }
 
-.kb-list-view__footer {
-  padding: 0 var(--page-padding) 16px;
-  font-size: 13px;
-  color: var(--kb-text-quaternary);
+/* 移动端：搜索栏与网格降级 */
+@media (max-width: 767px) {
+  .kb-list-view__shoulder {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .kb-list-view__search {
+    width: 100%;
+  }
+  .kb-list-view__grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

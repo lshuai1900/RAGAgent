@@ -9,6 +9,9 @@ import 'ant-design-vue/dist/reset.css'
 import App from './App.vue'
 import router from './router'
 import './assets/styles/global.css'
+// Yuxi v0.7.0 工作台基座样式（plain CSS，不引入 Less）。
+// 详见 docs/THIRD_PARTY_NOTICES.md。
+import './assets/styles/yuxi/index.css'
 
 const app = createApp(App)
 app.use(createPinia())

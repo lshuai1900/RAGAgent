@@ -1,116 +1,83 @@
+<!--
+  Adapted from xerrors/Yuxi under MIT License.
+  Original project: `https://github.com/xerrors/Yuxi`
+  Version: v0.7.0
+  Modified for RAGAgent lightweight RAG-only scope.
+  组件样式参考 Yuxi database-tab-bar，改写为 plain CSS。
+  仅保留 RAG-only 允许的 3 个 Tab，删除知识图谱/导图/评估等暂缓入口。
+-->
 <script setup lang="ts">
 /**
- * 知识库详情页横向 Tab 导航（Yuxi 风格 1:1 复刻）
+ * 知识库详情页横向 Tab 导航（Yuxi 风格）
  *
- * 视觉规格（参考 Yuxi database-tab-bar，不复制源码）：
- * - tab-bar：padding:8px 12px 0，底边框 1px solid #eef0f0，白底，overflow-x:auto
- * - tab-list：flex，gap:6px，min-width:max-content
- * - tab-item：min-height:40px，圆角 8px 8px 0 0，无边框，透明底
- *   内边距 0 14px 8px，gap:10px，图标 17px + 文字
- *   字号 14px/500，默认色 #697070
- *   hover：色 #1e1f1f，底 #f5f7f7
- *   active：色主色 #046a82，底 #f6f9fa
- *   底部下划线 ::before：left/right:12px, bottom:0, height:3px, border-radius:3px 3px 0 0, background:主色
- *   过渡 background 0.15s, color 0.15s
- *
- * 6 个 Tab：文件管理 / 检索测试 / 知识图谱 / 知识导图 / RAG 评估 / 评估基准
- * - 文件管理 / 检索测试：真实功能
- * - 其余：规划中，Tab 上显示"规划中"小标签，点击不切换，由父组件提示
+ * 仅 3 个真实功能 Tab：文件管理 / 检索测试 / 聊天问答。
+ * 通过 RouterLink 跳转子路由，active 状态由路由匹配自动判定。
+ * 不渲染任何 planned / 暂缓 Tab（知识图谱 / 导图 / 评估 / 模型配置 / 权限等）。
  */
 import { computed } from 'vue'
-import {
-  FileText,
-  Search,
-  Network,
-  Map,
-  BarChart3,
-  ClipboardList,
-} from 'lucide-vue-next'
-
-type TabKey =
-  | 'documents'
-  | 'retrieve'
-  | 'graph'
-  | 'mindmap'
-  | 'eval'
-  | 'benchmark'
+import { useRoute } from 'vue-router'
+import { FileText, Search, MessageSquare } from 'lucide-vue-next'
+import { featureFlags } from '@/config/features'
 
 interface TabItem {
-  key: TabKey
+  /** 路由 name */
+  to: string
+  /** 子路由路径片段（files/retrieval/chat） */
+  tab: string
+  /** 显示文案 */
   label: string
+  /** 图标 */
   icon: unknown
-  planned: boolean
 }
 
-const TABS: TabItem[] = [
-  { key: 'documents', label: '文件管理', icon: FileText, planned: false },
-  { key: 'retrieve', label: '检索测试', icon: Search, planned: false },
-  { key: 'graph', label: '知识图谱', icon: Network, planned: true },
-  { key: 'mindmap', label: '知识导图', icon: Map, planned: true },
-  { key: 'eval', label: 'RAG 评估', icon: BarChart3, planned: true },
-  { key: 'benchmark', label: '评估基准', icon: ClipboardList, planned: true },
+const route = useRoute()
+
+const baseTabs: TabItem[] = [
+  { to: 'knowledgeBaseFiles', tab: 'files', label: '文件管理', icon: FileText },
+  { to: 'knowledgeBaseRetrieval', tab: 'retrieval', label: '检索测试', icon: Search },
+  { to: 'knowledgeBaseChat', tab: 'chat', label: '聊天问答', icon: MessageSquare },
 ]
 
-interface Props {
-  /** 当前选中的 Tab key */
-  modelValue: string
-}
-const props = defineProps<Props>()
+/** Tab 列表：默认仅 3 个真实 Tab；暂缓项由 featureFlags 控制（默认 false，不渲染） */
+const tabs = computed<TabItem[]>(() => {
+  // 预留：未来通过 featureFlags 开启的 Tab 在此追加。
+  // 当前 ENABLE_PLANNED_TABS = false，不渲染任何暂缓入口。
+  void featureFlags
+  return baseTabs
+})
 
-interface Emits {
-  (e: 'update:modelValue', key: string): void
-  (e: 'select', key: string): void
-}
-const emit = defineEmits<Emits>()
-
-const activeKey = computed(() => props.modelValue)
-
-function handleClick(tab: TabItem): void {
-  emit('select', tab.key)
-  if (!tab.planned) {
-    emit('update:modelValue', tab.key)
-  }
+function isActive(tab: TabItem): boolean {
+  return route.meta.tab === tab.tab
 }
 </script>
 
 <template>
-  <div class="kb-tabs">
-    <nav class="kb-tabs__list" role="tablist" aria-label="知识库功能标签">
-      <button
-        v-for="tab in TABS"
-        :key="tab.key"
-        type="button"
-        class="kb-tabs__item"
-        :class="{
-          'kb-tabs__item--active': activeKey === tab.key,
-          'kb-tabs__item--planned': tab.planned,
-        }"
-        role="tab"
-        :aria-selected="activeKey === tab.key"
-        @click="handleClick(tab)"
-      >
-        <component :is="tab.icon" :size="17" class="kb-tabs__icon" />
-        <span class="kb-tabs__label">{{ tab.label }}</span>
-        <span v-if="tab.planned" class="kb-tabs__planned-tag">规划中</span>
-      </button>
-    </nav>
-  </div>
+  <nav class="kb-tabs" role="tablist" aria-label="知识库功能标签">
+    <RouterLink
+      v-for="tab in tabs"
+      :key="tab.tab"
+      :to="{ name: tab.to, params: { kbId: route.params.kbId } }"
+      class="kb-tabs__item"
+      :class="{ 'kb-tabs__item--active': isActive(tab) }"
+      role="tab"
+      :aria-selected="isActive(tab)"
+    >
+      <component :is="tab.icon" :size="17" class="kb-tabs__icon" />
+      <span class="kb-tabs__label">{{ tab.label }}</span>
+    </RouterLink>
+  </nav>
 </template>
 
 <style scoped>
 .kb-tabs {
-  padding: 8px 12px 0;
-  background-color: var(--kb-surface);
-  border-bottom: 1px solid var(--kb-border);
-  overflow-x: auto;
-  flex-shrink: 0;
-}
-
-.kb-tabs__list {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  min-width: max-content;
+  padding: 8px var(--kb-page-padding, 24px) 0;
+  background-color: var(--yuxi-gray-0);
+  border-bottom: 1px solid var(--yuxi-gray-100);
+  overflow-x: auto;
+  flex-shrink: 0;
 }
 
 .kb-tabs__item {
@@ -122,24 +89,26 @@ function handleClick(tab: TabItem): void {
   padding: 0 14px 8px;
   background: transparent;
   border: none;
-  border-radius: var(--kb-radius) var(--kb-radius) 0 0;
+  border-radius: var(--yuxi-radius) var(--yuxi-radius) 0 0;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: var(--kb-text-tertiary);
+  color: var(--yuxi-gray-600);
+  text-decoration: none;
   transition: background-color 0.15s ease, color 0.15s ease;
   white-space: nowrap;
   user-select: none;
 }
 
 .kb-tabs__item:hover {
-  color: var(--kb-text-title);
-  background-color: var(--kb-bg-hover);
+  color: var(--yuxi-gray-900);
+  background-color: var(--yuxi-gray-50);
 }
 
 .kb-tabs__item--active {
-  color: var(--kb-primary-hover);
-  background-color: var(--kb-primary-bg-hover);
+  color: var(--yuxi-main-color);
+  background-color: var(--yuxi-main-20);
+  font-weight: 600;
 }
 
 /* 底部下划线（3px 主色） */
@@ -151,15 +120,7 @@ function handleClick(tab: TabItem): void {
   bottom: 0;
   height: 3px;
   border-radius: 3px 3px 0 0;
-  background-color: var(--kb-primary);
-}
-
-.kb-tabs__item--planned {
-  color: var(--kb-text-quaternary);
-}
-
-.kb-tabs__item--planned:hover {
-  color: var(--kb-text-tertiary);
+  background-color: var(--yuxi-main-color);
 }
 
 .kb-tabs__icon {
@@ -168,17 +129,5 @@ function handleClick(tab: TabItem): void {
 
 .kb-tabs__label {
   line-height: 1;
-}
-
-.kb-tabs__planned-tag {
-  margin-left: 2px;
-  padding: 1px 6px;
-  font-size: 11px;
-  line-height: 1.4;
-  font-weight: 500;
-  border-radius: var(--kb-radius-pill);
-  color: var(--kb-text-quaternary);
-  background-color: var(--kb-bg-soft);
-  border: 1px solid var(--kb-border);
 }
 </style>

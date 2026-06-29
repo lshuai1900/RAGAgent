@@ -1,0 +1,337 @@
+/**
+ * Adapted from xerrors/Yuxi under MIT License.
+ * Original project: `https://github.com/xerrors/Yuxi`
+ * Version: v0.7.0
+ * Modified for RAGAgent lightweight RAG-only scope.
+ *
+ * Yuxi 通用组件视觉：PageHeader / Card / EmptyState / StatusBadge。
+ * 移植自 Yuxi 对应组件 less 样式，改写为 plain CSS。
+ */
+
+/* ===== PageHeader ===== */
+.yuxi-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px var(--kb-page-padding, 24px);
+  background-color: var(--yuxi-light-60);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.yuxi-page-header--bordered {
+  border-bottom: 1px solid var(--yuxi-gray-100);
+}
+
+.yuxi-page-header__main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.yuxi-page-header__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--yuxi-gray-600);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.yuxi-page-header__back:hover {
+  background: var(--yuxi-main-20);
+  color: var(--yuxi-main-color);
+}
+
+.yuxi-page-header__titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.yuxi-page-header__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--yuxi-gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yuxi-page-header__description {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--yuxi-gray-600);
+  line-height: 1.4;
+}
+
+.yuxi-page-header__extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ===== Card ===== */
+.yuxi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--yuxi-radius);
+  border: 1px solid var(--yuxi-gray-150);
+  background: linear-gradient(45deg, var(--yuxi-gray-0) 0%, var(--yuxi-gray-25) 100%);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.yuxi-card--interactive {
+  cursor: pointer;
+}
+
+.yuxi-card--interactive:hover {
+  border-color: var(--yuxi-main-100);
+  background: linear-gradient(45deg, var(--yuxi-gray-0) 0%, var(--yuxi-main-30) 100%);
+}
+
+.yuxi-card--flat {
+  background: var(--yuxi-gray-0);
+}
+
+.yuxi-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.yuxi-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--yuxi-radius);
+  background: var(--yuxi-main-30);
+  border: 1px solid var(--yuxi-gray-150);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--yuxi-main-color);
+  font-size: 18px;
+}
+
+.yuxi-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.yuxi-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--yuxi-gray-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yuxi-card__description {
+  font-size: 13px;
+  color: var(--yuxi-gray-600);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yuxi-card__extra {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+}
+
+.yuxi-card__body {
+  font-size: 13px;
+  color: var(--yuxi-gray-700);
+  line-height: 1.5;
+}
+
+.yuxi-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 -16px -16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--yuxi-gray-100);
+  background: var(--yuxi-gray-10);
+}
+
+/* ===== EmptyState ===== */
+.yuxi-empty-state {
+  display: flex;
+  width: 100%;
+  min-height: 300px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 20px;
+  text-align: center;
+}
+
+.yuxi-empty-state--compact {
+  min-height: 240px;
+  padding: 48px 16px;
+}
+
+.yuxi-empty-state--compact .yuxi-empty-state__icon {
+  width: 42px;
+  height: 42px;
+  margin-bottom: 14px;
+}
+
+.yuxi-empty-state--compact .yuxi-empty-state__title {
+  font-size: 16px;
+}
+
+.yuxi-empty-state--full-height {
+  height: 100%;
+  min-height: 0;
+  padding: 32px 20px;
+}
+
+.yuxi-empty-state__icon {
+  display: flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  border: 1px solid var(--yuxi-gray-150);
+  border-radius: var(--yuxi-radius);
+  background: var(--yuxi-main-30);
+  color: var(--yuxi-main-color);
+}
+
+.yuxi-empty-state__title {
+  margin: 0;
+  color: var(--yuxi-gray-900);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.yuxi-empty-state__description {
+  max-width: 360px;
+  margin: 8px 0 0;
+  color: var(--yuxi-gray-600);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.yuxi-empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+@media (max-width: 767px) {
+  .yuxi-empty-state {
+    min-height: 260px;
+    padding: 56px 16px;
+  }
+  .yuxi-empty-state--compact {
+    min-height: 220px;
+    padding: 40px 16px;
+  }
+  .yuxi-empty-state--full-height {
+    min-height: 0;
+    padding: 28px 16px;
+  }
+  .yuxi-empty-state__description {
+    max-width: 100%;
+  }
+}
+
+/* ===== StatusBadge ===== */
+.yuxi-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 4px;
+  background: var(--yuxi-gray-100);
+  color: var(--yuxi-gray-600);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.yuxi-status-badge--success {
+  background: var(--yuxi-success-50);
+  color: var(--yuxi-success-700);
+}
+
+.yuxi-status-badge--processing {
+  background: var(--yuxi-info-50);
+  color: var(--yuxi-info-500);
+}
+
+.yuxi-status-badge--warning {
+  background: var(--yuxi-warning-50);
+  color: var(--yuxi-warning-700);
+}
+
+.yuxi-status-badge--error {
+  background: var(--yuxi-error-50);
+  color: var(--yuxi-error-700);
+}
+
+.yuxi-status-badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--yuxi-gray-300);
+  flex-shrink: 0;
+}
+
+.yuxi-status-badge--success .yuxi-status-badge__dot {
+  background: var(--yuxi-success-500);
+}
+
+.yuxi-status-badge--processing .yuxi-status-badge__dot {
+  background: var(--yuxi-info-500);
+  animation: yuxi-status-badge-pulse 1.2s ease-in-out infinite;
+}
+
+.yuxi-status-badge--warning .yuxi-status-badge__dot {
+  background: var(--yuxi-warning-500);
+}
+
+.yuxi-status-badge--error .yuxi-status-badge__dot {
+  background: var(--yuxi-error-500);
+}
+
+@keyframes yuxi-status-badge-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

@@ -1,0 +1,14 @@
+/**
+ * Adapted from xerrors/Yuxi under MIT License.
+ * Original project: `https://github.com/xerrors/Yuxi`
+ * Version: v0.7.0
+ * Modified for RAGAgent lightweight RAG-only scope.
+ *
+ * Yuxi 工作台基座样式聚合入口。
+ * 由 web/src/main.ts 引入，作为 Yuxi 风格组件的样式底座。
+ * 不覆盖现有 global.css 的全局变量，仅以 `--yuxi-*` 命名补充。
+ */
+
+@import './base.css';
+@import './layout.css';
+@import './components.css';

@@ -1,27 +1,31 @@
+<!--
+  Adapted from xerrors/Yuxi under MIT License.
+  Original project: `https://github.com/xerrors/Yuxi`
+  Version: v0.7.0
+  Modified for RAGAgent lightweight RAG-only scope.
+  组件样式参考 Yuxi DataBaseInfoView 沉浸式 Header，改写为 plain CSS。
+-->
 <script setup lang="ts">
 /**
- * 知识库详情页顶部 top-bar（Yuxi 风格 1:1 复刻）
+ * 知识库详情页沉浸式 Header（Yuxi 风格）
  *
- * 视觉规格（参考 Yuxi detail-top-bar，不复制源码）：
- * - padding:7px var(--page-padding)，gap:16px，底边框 1px solid #eff2f2，白底
- * - 返回按钮：无边框无底，色 #979999，14px，内边距 4px 8px，margin-left:-8px，圆角 6px
- *   hover：色 #4c4d4d + 底 #f5f7f7
- * - 图标区：40×40，圆角 8px，底 #f7fbfd，边框 #eef0f0，主色图标 18px
- * - 标题：16px/600/#1e1f1f（h2，单行省略）
- * - 副标题：12px/#979999
- * - 操作区：右侧按钮组 gap:8px
+ * - 返回按钮 + 知识库图标 + 名称 + 描述 + 状态徽标
+ * - 元信息行：文档数量 / 向量维度 / 创建时间 / 更新时间
+ * - 操作区：复制 ID / 编辑 / 刷新
+ *
+ * 不显示暂缓项（模型配置 / 权限 / 知识图谱入口等）。
  */
-import { ArrowLeft, Database, Copy, Pencil, RefreshCw } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { ArrowLeft, Database, Copy, Pencil, RefreshCw, FileText, Layers, Clock } from 'lucide-vue-next'
 import { message } from 'ant-design-vue'
+import YuxiStatusBadge, { type YuxiStatusKind } from '@/components/yuxi/YuxiStatusBadge.vue'
+import { formatTime } from '@/utils/format'
+import type { KnowledgeBaseOut } from '@/types/api'
 
 interface Props {
-  /** 知识库名称 */
-  name: string
-  /** 文件数量（用于副标题） */
-  documentCount: number
-  /** 知识库 ID（用于复制） */
-  kbId?: string
-  /** 知识库信息加载中（控制刷新按钮 loading） */
+  /** 知识库详情（已加载完成时传入） */
+  knowledgeBase: KnowledgeBaseOut | null
+  /** 加载中（控制刷新按钮 loading 与名称兜底） */
   loading?: boolean
 }
 const props = defineProps<Props>()
@@ -33,6 +37,42 @@ interface Emits {
 }
 const emit = defineEmits<Emits>()
 
+const displayName = computed(() => props.knowledgeBase?.name ?? '知识库加载中')
+const displayDesc = computed(() => props.knowledgeBase?.description || '暂无描述')
+
+const statusKind = computed<YuxiStatusKind>(() => {
+  switch (props.knowledgeBase?.status) {
+    case 'active':
+      return 'success'
+    case 'archived':
+      return 'default'
+    case 'building':
+    case 'processing':
+    case 'indexing':
+      return 'processing'
+    case 'failed':
+    case 'error':
+      return 'error'
+    default:
+      return 'default'
+  }
+})
+
+const statusLabel = computed<string>(() => {
+  switch (statusKind.value) {
+    case 'success':
+      return '启用'
+    case 'processing':
+      return '处理中'
+    case 'error':
+      return '异常'
+    case 'default':
+      return '已归档'
+    default:
+      return '未知'
+  }
+})
+
 function handleBack(): void {
   emit('back')
 }
@@ -41,170 +81,245 @@ function handleRefresh(): void {
   emit('refresh')
 }
 
-/** 复制知识库 ID（前端剪贴板，不调后端） */
+function handleEdit(): void {
+  emit('edit')
+}
+
 async function handleCopyId(): Promise<void> {
-  if (!props.kbId) return
+  const kbId = props.knowledgeBase?.id
+  if (!kbId) return
   try {
-    await navigator.clipboard.writeText(props.kbId)
+    await navigator.clipboard.writeText(kbId)
     message.success('知识库 ID 已复制')
   } catch {
     message.warning('复制失败，请手动复制')
   }
 }
-
-/** 编辑知识库：交由父组件打开编辑弹窗 */
-function handleEdit(): void {
-  emit('edit')
-}
 </script>
 
 <template>
-  <div class="kb-topbar">
-    <!-- 返回按钮 -->
-    <button type="button" class="kb-topbar__back" @click="handleBack">
-      <ArrowLeft :size="16" />
-      <span>返回</span>
-    </button>
+  <div class="kb-header">
+    <!-- 返回行 -->
+    <div class="kb-header__top">
+      <button type="button" class="kb-header__back" @click="handleBack">
+        <ArrowLeft :size="16" />
+        <span>返回知识库</span>
+      </button>
+    </div>
 
-    <!-- 标题区：图标 + 名称 + 副标题 -->
-    <div class="kb-topbar__title-area">
-      <div class="kb-topbar__icon">
-        <Database :size="18" />
+    <!-- 主体：图标 + 名称 + 描述 + 状态 -->
+    <div class="kb-header__main">
+      <div class="kb-header__icon">
+        <Database :size="22" />
       </div>
-      <div class="kb-topbar__text">
-        <h2 class="kb-topbar__name" :title="name">{{ name || '知识库加载中' }}</h2>
-        <span class="kb-topbar__subtitle">RAG 知识库 · {{ documentCount }} 文件</span>
+      <div class="kb-header__info">
+        <div class="kb-header__title-row">
+          <h1 class="kb-header__name" :title="displayName">{{ displayName }}</h1>
+          <YuxiStatusBadge :kind="statusKind" :label="statusLabel" />
+        </div>
+        <p class="kb-header__desc">{{ displayDesc }}</p>
       </div>
     </div>
 
-    <!-- 操作区 -->
-    <div class="kb-topbar__actions">
-      <button
-        type="button"
-        class="kb-topbar__action kb-topbar__action--secondary"
-        @click="handleCopyId"
-      >
-        <Copy :size="14" />
-        <span>复制 ID</span>
-      </button>
-      <button
-        type="button"
-        class="kb-topbar__action kb-topbar__action--secondary"
-        @click="handleEdit"
-      >
-        <Pencil :size="14" />
-        <span>编辑</span>
-      </button>
-      <button
-        type="button"
-        class="kb-topbar__action kb-topbar__action--secondary"
-        :disabled="loading"
-        @click="handleRefresh"
-      >
-        <RefreshCw :size="14" :class="{ 'kb-topbar__spin': loading }" />
-        <span>刷新</span>
-      </button>
+    <!-- 元信息 + 操作 -->
+    <div class="kb-header__meta-row">
+      <div class="kb-header__meta">
+        <div class="kb-header__meta-item">
+          <FileText :size="14" />
+          <span class="kb-header__meta-label">文档</span>
+          <span class="kb-header__meta-value">{{ knowledgeBase?.document_count ?? 0 }}</span>
+        </div>
+        <div class="kb-header__meta-item">
+          <Layers :size="14" />
+          <span class="kb-header__meta-label">维度</span>
+          <span class="kb-header__meta-value">{{ knowledgeBase?.embedding_dim ?? '—' }}</span>
+        </div>
+        <div class="kb-header__meta-item">
+          <Clock :size="14" />
+          <span class="kb-header__meta-label">创建</span>
+          <span class="kb-header__meta-value">{{
+            knowledgeBase?.created_at ? formatTime(knowledgeBase.created_at) : '—'
+          }}</span>
+        </div>
+        <div class="kb-header__meta-item">
+          <Clock :size="14" />
+          <span class="kb-header__meta-label">更新</span>
+          <span class="kb-header__meta-value">{{
+            knowledgeBase?.updated_at ? formatTime(knowledgeBase.updated_at) : '—'
+          }}</span>
+        </div>
+      </div>
+
+      <div class="kb-header__actions">
+        <button type="button" class="kb-header__action" @click="handleCopyId">
+          <Copy :size="14" />
+          <span>复制 ID</span>
+        </button>
+        <button type="button" class="kb-header__action" @click="handleEdit">
+          <Pencil :size="14" />
+          <span>编辑</span>
+        </button>
+        <button
+          type="button"
+          class="kb-header__action"
+          :disabled="loading"
+          @click="handleRefresh"
+        >
+          <RefreshCw :size="14" :class="{ 'kb-header__spin': loading }" />
+          <span>刷新</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.kb-topbar {
+.kb-header {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 7px var(--page-padding);
-  background-color: var(--kb-surface);
-  border-bottom: 1px solid var(--kb-border-light);
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px var(--kb-page-padding, 24px) 12px;
+  background: linear-gradient(180deg, var(--yuxi-main-10) 0%, var(--yuxi-gray-0) 100%);
+  border-bottom: 1px solid var(--yuxi-gray-100);
   flex-shrink: 0;
 }
 
-/* 返回按钮 */
-.kb-topbar__back {
+/* 返回行 */
+.kb-header__top {
+  display: flex;
+  align-items: center;
+}
+
+.kb-header__back {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: -8px;
   padding: 4px 8px;
   background: transparent;
   border: none;
-  border-radius: var(--kb-radius-sm);
-  color: var(--kb-text-quaternary);
-  font-size: 14px;
+  border-radius: var(--yuxi-radius-sm);
+  color: var(--yuxi-gray-600);
+  font-size: 13px;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
-  flex-shrink: 0;
 }
 
-.kb-topbar__back:hover {
-  background-color: var(--kb-bg-hover);
-  color: var(--kb-text-secondary);
+.kb-header__back:hover {
+  background-color: var(--yuxi-gray-100);
+  color: var(--yuxi-gray-900);
 }
 
-/* 标题区 */
-.kb-topbar__title-area {
-  flex: 1;
-  min-width: 0;
+/* 主体 */
+.kb-header__main {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
 }
 
-.kb-topbar__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--kb-radius);
+.kb-header__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--yuxi-radius);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--kb-primary-hover);
-  background-color: var(--kb-primary-bg);
-  border: 1px solid var(--kb-border);
+  color: var(--yuxi-main-color);
+  background-color: var(--yuxi-main-30);
+  border: 1px solid var(--yuxi-gray-150);
 }
 
-.kb-topbar__text {
+.kb-header__info {
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 
-.kb-topbar__name {
+.kb-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kb-header__name {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--kb-text-title);
+  font-size: 20px;
+  font-weight: 650;
+  color: var(--yuxi-gray-900);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
-.kb-topbar__subtitle {
+.kb-header__desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--yuxi-gray-600);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* 元信息 + 操作行 */
+.kb-header__meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kb-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.kb-header__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--yuxi-gray-500);
   font-size: 12px;
-  color: var(--kb-text-quaternary);
 }
 
-/* 操作区 */
-.kb-topbar__actions {
+.kb-header__meta-item svg {
+  color: var(--yuxi-gray-400);
+}
+
+.kb-header__meta-label {
+  color: var(--yuxi-gray-500);
+}
+
+.kb-header__meta-value {
+  color: var(--yuxi-gray-800);
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* 操作按钮组 */
+.kb-header__actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
 
-/* 通用操作按钮（Yuxi extension-panel-action-secondary） */
-.kb-topbar__action {
+.kb-header__action {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 30px;
   padding: 0 12px;
-  border: 1px solid var(--kb-border-strong);
-  border-radius: var(--kb-radius-sm);
-  background-color: var(--kb-surface);
-  color: var(--kb-text-secondary);
+  border: 1px solid var(--yuxi-gray-150);
+  border-radius: var(--yuxi-radius-sm);
+  background-color: var(--yuxi-gray-0);
+  color: var(--yuxi-gray-700);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -212,28 +327,42 @@ function handleEdit(): void {
   white-space: nowrap;
 }
 
-.kb-topbar__action:hover {
-  border-color: var(--kb-border-hover);
-  color: var(--kb-text-title);
+.kb-header__action:hover {
+  border-color: var(--yuxi-main-100);
+  color: var(--yuxi-main-color);
+  background-color: var(--yuxi-main-20);
 }
 
-.kb-topbar__action:disabled {
+.kb-header__action:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.kb-topbar__action--secondary:hover {
-  color: var(--kb-primary-hover);
-  border-color: var(--kb-primary-soft-hover);
+.kb-header__spin {
+  animation: kb-header-spin 1s linear infinite;
 }
 
-.kb-topbar__spin {
-  animation: kb-topbar-spin 1s linear infinite;
-}
-
-@keyframes kb-topbar-spin {
+@keyframes kb-header-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* 移动端：元信息纵向堆叠 */
+@media (max-width: 767px) {
+  .kb-header__meta-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .kb-header__meta {
+    gap: 12px;
+  }
+  .kb-header__actions {
+    width: 100%;
+  }
+  .kb-header__action {
+    flex: 1;
+    justify-content: center;
   }
 }
 </style>

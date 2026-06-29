@@ -1,0 +1,266 @@
+/**
+ * Adapted from xerrors/Yuxi under MIT License.
+ * Original project: `https://github.com/xerrors/Yuxi`
+ * Version: v0.7.0
+ * Modified for RAGAgent lightweight RAG-only scope.
+ *
+ * AppShell 工作台外壳布局：侧栏 + 主内容区。
+ * 移植自 Yuxi AppLayout.vue 的 less 样式，改写为 plain CSS。
+ * 不含登录 / 用户信息 / 任务中心 / 会话列表 / GitHub stars 等暂缓项。
+ */
+
+/* AppShell 根容器：行方向 flex，占满视口 */
+.yuxi-app-shell {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100vh;
+  min-width: var(--yuxi-min-width);
+  background-color: var(--kb-bg);
+}
+
+/* 沉浸式（详情页）：满屏主内容，无侧栏 */
+.yuxi-app-shell--immersive {
+  background-color: var(--kb-bg);
+}
+
+.yuxi-app-shell--immersive .yuxi-app-shell__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 侧栏 */
+.yuxi-app-shell__sidebar {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--yuxi-sidebar-width);
+  width: var(--yuxi-sidebar-width);
+  height: 100%;
+  padding: 6px 8px;
+  gap: 16px;
+  background-color: var(--yuxi-main-5);
+  border-right: 1px solid var(--yuxi-gray-100);
+  overflow: hidden;
+  user-select: none;
+  transition: width 0.18s ease, flex-basis 0.18s ease;
+}
+
+.yuxi-app-shell__sidebar--collapsed {
+  flex-basis: var(--yuxi-sidebar-collapsed-width);
+  width: var(--yuxi-sidebar-collapsed-width);
+}
+
+/* 侧栏品牌区 */
+.yuxi-app-shell__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--yuxi-sidebar-item-height);
+  gap: 8px;
+  padding: 6px 4px 6px 2px;
+}
+
+.yuxi-app-shell__brand-link {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  height: var(--yuxi-sidebar-item-height);
+  color: var(--yuxi-gray-900);
+  text-decoration: none;
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.yuxi-app-shell__brand-avatar {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--yuxi-main-600);
+  color: #ffffff;
+}
+
+.yuxi-app-shell__brand-name {
+  min-width: 0;
+  margin-left: 10px;
+  overflow: hidden;
+  color: var(--yuxi-gray-1000);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.18s ease, max-width 0.18s ease;
+}
+
+.yuxi-app-shell__brand-subtitle {
+  display: block;
+  margin-left: 10px;
+  font-size: 11px;
+  font-weight: 450;
+  color: var(--yuxi-gray-500);
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 折叠按钮 */
+.yuxi-app-shell__toggle {
+  display: inline-flex;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--yuxi-gray-600);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.yuxi-app-shell__toggle:hover,
+.yuxi-app-shell__toggle:focus-visible {
+  border-color: var(--yuxi-main-50);
+  background: var(--yuxi-main-20);
+  color: var(--yuxi-main-color);
+  outline: none;
+}
+
+/* 导航列表 */
+.yuxi-app-shell__nav {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.yuxi-app-shell__fill {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.yuxi-app-shell__footer {
+  flex-shrink: 0;
+  padding: 4px 0;
+  border-top: 1px solid var(--yuxi-gray-100);
+  margin-top: 4px;
+}
+
+/* 导航项 */
+.yuxi-app-shell__item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: var(--yuxi-sidebar-item-height);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--yuxi-gray-700);
+  font-size: 14px;
+  font-weight: 450;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.yuxi-app-shell__item:hover {
+  border-color: transparent;
+  background-color: var(--yuxi-main-20);
+  color: var(--yuxi-main-color);
+}
+
+.yuxi-app-shell__item--active {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--yuxi-main-color) 6%, var(--yuxi-gray-0));
+  font-weight: 600;
+  color: var(--yuxi-main-color);
+}
+
+.yuxi-app-shell__item-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.yuxi-app-shell__item-label {
+  min-width: 0;
+  max-width: 140px;
+  margin-left: 8px;
+  overflow: hidden;
+  line-height: 20px;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.12s ease, margin-left 0.18s ease, max-width 0.18s ease;
+}
+
+/* 主内容区 */
+.yuxi-app-shell__content {
+  flex: 1 1 auto;
+  height: 100%;
+  max-width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+/* 折叠态：隐藏品牌名 / 标签 / 子标题 */
+.yuxi-app-shell--collapsed .yuxi-app-shell__brand-name,
+.yuxi-app-shell--collapsed .yuxi-app-shell__brand-subtitle,
+.yuxi-app-shell--collapsed .yuxi-app-shell__item-label {
+  opacity: 0;
+  max-width: 0;
+  margin-left: 0;
+  pointer-events: none;
+}
+
+.yuxi-app-shell--collapsed .yuxi-app-shell__brand {
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.yuxi-app-shell--collapsed .yuxi-app-shell__item {
+  justify-content: center;
+  padding: 0;
+}
+
+.yuxi-app-shell--collapsed .yuxi-app-shell__toggle {
+  width: 28px;
+  height: 28px;
+}
+
+/* 移动端：窄屏不折叠，保留文字 */
+@media (max-width: 767px) {
+  .yuxi-app-shell__sidebar {
+    flex: 0 0 56px;
+    width: 56px;
+  }
+  .yuxi-app-shell__brand-name,
+  .yuxi-app-shell__brand-subtitle,
+  .yuxi-app-shell__item-label {
+    opacity: 0;
+    max-width: 0;
+    margin-left: 0;
+    pointer-events: none;
+  }
+}

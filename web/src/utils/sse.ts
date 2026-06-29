@@ -31,12 +31,16 @@ export interface SseDeltaPayload {
   content: string
 }
 
-/** done 事件 payload（retrieval_context 可选，当前后端不下发） */
+/** done 事件 payload（引用来源字段可选，由前端统一映射为 references） */
 export interface SseDonePayload {
   trace_id: string
   finish_reason: string
-  /** 若后端在 done 事件扩展引用来源，原样透出 */
+  /** 旧字段：引用来源（向后兼容） */
   retrieval_context?: unknown
+  /** 新字段：引用来源（优先使用） */
+  references?: unknown
+  /** 兼容字段：后端可能下发 citations，前端映射为 references */
+  citations?: unknown
 }
 
 /** error 事件 payload */
@@ -212,6 +216,12 @@ function dispatchEvent(evt: SseEvent, handlers: SseHandlers): void {
       }
       if (payload.retrieval_context !== undefined) {
         done.retrieval_context = payload.retrieval_context
+      }
+      if (payload.references !== undefined) {
+        done.references = payload.references
+      }
+      if (payload.citations !== undefined) {
+        done.citations = payload.citations
       }
       handlers.onDone?.(done)
       break
