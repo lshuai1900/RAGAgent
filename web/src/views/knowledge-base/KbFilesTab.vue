@@ -108,6 +108,16 @@ function openUpload(): void {
   uploadModalOpen.value = true
 }
 
+/**
+ * 上传成功后回调：
+ * - store.upload() 内部已 fetchList + startPolling（单文档 2s）
+ * - 此处重启列表 3s 轮询（新文档为非终态，schedulePoll 会启动）
+ * - 不重复调 fetchList（store 已刷新）
+ */
+function handleUploaded(): void {
+  schedulePoll()
+}
+
 function handleRename(doc: DocumentOut): void {
   renameTarget.value = doc
   renameModalOpen.value = true
@@ -226,7 +236,11 @@ onBeforeUnmount(() => {
     @reprocess="handleReprocess"
   />
 
-  <DocumentUploadModal v-model:open="uploadModalOpen" :kb-id="kbId" />
+  <DocumentUploadModal
+    v-model:open="uploadModalOpen"
+    :kb-id="kbId"
+    @uploaded="handleUploaded"
+  />
   <DocumentRenameModal
     v-model:open="renameModalOpen"
     :kb-id="kbId"
