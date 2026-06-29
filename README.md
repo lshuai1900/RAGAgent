@@ -174,18 +174,27 @@ uv run pytest tests/integration -v   # 集成测试（需 PG + Milvus）
 
 - 中文知识库产品工作台（左侧轻量导航 + 顶部标题区 + 主内容区，蓝绿色主题）
 - 仪表盘健康检查（PostgreSQL / Milvus / 追踪编号 / 检查时间）
+- API Base URL 设置与连接测试（写入 localStorage，测试连接调用 `GET /health`）
 - 知识库列表（Yuxi 风格卡片网格 + 状态标签 + 文档数量 + 向量维度 + 创建时间 + 进入详情入口）
 - 新建知识库（弹窗表单 + 校验，Embedding 模型与维度只读对齐后端）
+- 编辑知识库（重命名 / 修改描述 / 修改状态，弹窗确认）
+- 删除知识库（软删除确认弹窗）
 - 知识库详情（沉浸式布局：隐藏左侧菜单 + 64px Header + 横向功能 Tab）
 - 横向功能 Tab（文件管理 / 检索测试 / 聊天问答 三个真实功能；知识图谱 / 知识导图 / RAG 评估 / 评估基准 等暂缓项已隐藏，不在 UI 暴露入口）
-- 文件管理（Yuxi 风格行列表：文件类型图标 + 文件名 + 状态徽标 + 细分隔线，非后台表格）
-- 文档上传（拖拽上传 + TXT/Markdown/PDF + 50MB 校验 + 重复文件检测）
+- 文件列表（Yuxi 风格行列表：文件类型图标 + 文件名 + 状态徽标 + 细分隔线，非后台表格）
+- 文档上传（Yuxi 风格 dropzone + TXT/Markdown/PDF + 50MB 校验 + 重复文件名检测 + 上传后刷新并轮询）
 - 文档状态轮询（pending → parsing → chunking → embedding → indexing → completed/failed，每 3 秒轮询，全终态自动停止）
+- 文档重命名（同一知识库内重名校验）
+- 文档删除（确认弹窗，向量索引按后端逻辑清理）
+- 文档重新处理（终态可触发，非终态禁用）
 - 检索测试（复用 `POST /api/v1/chat/sse`，左右分栏展示回答与引用来源）
-- 聊天问答（顶层 `/chat` 全局聊天页，顶部标题 + 右侧知识库选择器 + 左右分栏）
+- 聊天问答（顶层 `/chat` 全局聊天页 + 知识库详情 Chat Tab，复用同一 `RagChatPanel`）
 - POST SSE 流式输出（fetch + ReadableStream，禁用 EventSource）
-- 引用来源展示（多条卡片 + 3 位小数相似度 + 内容摘要折叠 + 空状态"暂无引用来源"）
-- API 地址设置（输入 + 测试连接 + 保存到 localStorage）
+- citations / references 前端统一映射（后端 done 事件可能下发 citations，前端映射为 `UiChatReference[]`）
+- 引用来源卡片展示（多条卡片 + 3 位小数相似度 + 内容摘要折叠 + 空状态"暂无引用来源"）
+- trace_id 展示（start / done / error 事件携带时显示）
+- finish_reason 展示（done 事件携带时显示）
+- 停止生成（AbortController 中断 SSE）
 - 错误提示统一为中文 + 追踪编号
 
 ### 启动方式
@@ -247,14 +256,34 @@ npm run dev
 前端 MVP 未实现以下功能（暂缓项）：
 
 - MCP 工具集成
+- Skills / SubAgents / Sandbox / LangGraph 多智能体编排
 - 意图识别 / 查询改写 / 多路检索
 - Rerank 模型配置界面
 - 三态熔断 / 限流 / 模型路由降级
 - JWT / 登录认证 / 用户权限 / 多租户
-- 知识图谱 / RAG 评估 / 对话标题自动生成
-- 会话列表 / 历史会话管理 / 多轮复杂会话切换
+- 知识图谱 / 知识导图 / RAG 评估 / 评估基准
+- 对话标题自动生成
+- 会话列表 / 历史会话管理 / 多轮复杂会话切换（当前聊天消息仅保存在页面内存，刷新后丢失）
+- Markdown 富文本渲染（当前回答为纯文本 pre-wrap 展示）
+- Office / 图片 / CSV / JSON / HTML 等更多文件格式解析
 - 管理后台（除知识库 / 文档 CRUD 外）
 - 暗色主题 / 国际化（i18n）/ 移动端适配
+
+### 前端路由
+
+| 路径 | 说明 |
+|---|---|
+| `/` | 仪表盘（健康检查） |
+| `/dashboard` | 重定向到 `/` |
+| `/knowledge-bases` | 知识库列表 |
+| `/knowledge-bases/:kbId` | 知识库详情，默认重定向到 `/files` |
+| `/knowledge-bases/:kbId/files` | 文件管理 Tab |
+| `/knowledge-bases/:kbId/retrieval` | 检索测试 Tab |
+| `/knowledge-bases/:kbId/chat` | 聊天问答 Tab |
+| `/chat` | 顶层全局聊天页（需选择知识库） |
+| `/settings` | 设置（API Base URL + 测试连接） |
+
+左侧导航仅 4 项：仪表盘 / 知识库 / 聊天问答 / 设置。暂缓功能入口未在 UI 暴露。
 
 ## 项目结构
 
